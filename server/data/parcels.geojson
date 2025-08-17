@@ -1,0 +1,63 @@
+{
+  "type": "FeatureCollection",
+  "name": "parcels_sample",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "parcel_id": "00-00-43-36-01-000-0010",
+        "address": "123 Main St, Palm Beach County, FL",
+        "zoning": "RM",
+        "ldc": "Rear setback 20 ft; Max height 35 ft"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[
+          [-80.2500, 26.6700],
+          [-80.2485, 26.6700],
+          [-80.2485, 26.6710],
+          [-80.2500, 26.6710],
+          [-80.2500, 26.6700]
+        ]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "parcel_id": "00-00-43-36-01-000-0020",
+        "address": "200 Lake Ave, Palm Beach County, FL",
+        "zoning": "CN",
+        "ldc": "Neighborhood commercial; Max height 40 ft on corner"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[
+          [-80.2700, 26.6500],
+          [-80.2687, 26.6500],
+          [-80.2687, 26.6512],
+          [-80.2700, 26.6512],
+          [-80.2700, 26.6500]
+        ]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "parcel_id": "00-00-43-36-01-000-0030",
+        "address": "350 Ocean Blvd, Palm Beach County, FL",
+        "zoning": "RM",
+        "ldc": "Rear setback 20 ft; Max height 35 ft"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[
+          [-80.2808, 26.6408],
+          [-80.2796, 26.6408],
+          [-80.2796, 26.6420],
+          [-80.2808, 26.6420],
+          [-80.2808, 26.6408]
+        ]]
+      }
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "watch": ["src"],
+  "ext": "js,json",
+  "execMap": { "js": "node" },
+  "ignore": [
+    "node_modules",
+    ".git",
+    "**/ZoomClient**",
+    "**/.DS_Store"
+  ],
+  "signal": "SIGTERM",
+  "legacyWatch": true
+}
