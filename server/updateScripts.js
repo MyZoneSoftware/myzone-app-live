@@ -1,0 +1,10 @@
+const fs = require('fs');
+const p = __dirname + '/package.json';
+const j = JSON.parse(fs.readFileSync(p, 'utf8'));
+j.scripts = j.scripts || {};
+j.scripts.prestart = 'lsof -ti tcp:5050 | xargs kill -9 || true';
+j.scripts.start   = 'node src/index.js';
+j.scripts.predev  = 'lsof -ti tcp:5050 | xargs kill -9 || true';
+j.scripts.dev     = 'nodemon src/index.js';
+fs.writeFileSync(p, JSON.stringify(j, null, 2));
+console.log('✅ server/package.json scripts set for port 5050');

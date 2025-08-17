@@ -1,0 +1,465 @@
+:root{
+  --bg:#f7f8fa;
+  --text:#111827;
+  --muted:#6b7280;
+  --card:#ffffff;
+  --border:#e5e7eb;
+  --brand:#1d4ed8;
+  --brand-weak:#eef2ff;
+}
+
+*{box-sizing:border-box}
+html,body,#root{height:100%}
+body{
+  margin:0;
+  font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;
+  color:var(--text);
+  background:var(--bg);
+}
+
+/* Layout */
+.app{
+  min-height:100%;
+  display:flex;
+}
+.sidebar{
+  width:260px;
+  background:#fff;
+  border-right:1px solid var(--border);
+  padding:12px;
+}
+.main{
+  flex:1;
+  display:flex;
+  flex-direction:column;
+  min-width:0;
+}
+.topbar{
+  position:sticky;
+  top:0;
+  z-index:50;
+  height:56px;
+  display:flex;
+  align-items:center;
+  gap:12px;
+  padding:0 12px;
+  background:#fff;
+  border-bottom:1px solid var(--border);
+}
+.brand{
+  font-weight:700;
+  white-space:nowrap;
+}
+.version{
+  font-size:12px;color:var(--muted);white-space:nowrap;
+}
+.container{
+  width:100%;
+  max-width:1200px;
+  margin:0 auto;
+  padding:16px;
+}
+.grid{
+  display:grid;
+  gap:16px;
+}
+.card{
+  background:var(--card);
+  border:1px solid var(--border);
+  border-radius:10px;
+  padding:12px;
+}
+
+/* Search focus block */
+.search-wrap{
+  width:100%;
+  display:flex;
+  justify-content:center;
+  padding:8px 0;
+}
+.search{
+  width:100%;
+  max-width:720px;
+  display:flex;
+  position:relative;
+}
+.search input{
+  flex:1;
+  padding:12px 14px;
+  font-size:15px;
+  border:1px solid var(--border);
+  border-right:none;
+  border-top-left-radius:10px;
+  border-bottom-left-radius:10px;
+  outline:none;
+  background:#fff;
+}
+.search button{
+  padding:12px 14px;
+  font-size:15px;
+  border:1px solid var(--brand);
+  background:var(--brand);
+  color:#fff;
+  border-top-right-radius:10px;
+  border-bottom-right-radius:10px;
+  cursor:pointer;
+}
+.results{
+  position:absolute;
+  top:50px;
+  left:0; right:0;
+  background:#fff;
+  border:1px solid var(--border);
+  border-radius:10px;
+  box-shadow:0 8px 20px rgba(0,0,0,.08);
+  max-height:340px;
+  overflow:auto;
+  z-index:40;
+}
+.results .row{
+  padding:10px 12px;
+  border-bottom:1px solid #f3f4f6;
+}
+.results .title{font-weight:600;font-size:14px}
+.results .meta{font-size:11px;color:#9ca3af}
+.results .snippet{font-size:12px;color:#4b5563}
+
+/* Sidebar nav */
+.nav .group-label{
+  font-size:12px;color:var(--muted);margin-bottom:8px
+}
+.nav a{
+  display:block;
+  padding:10px 12px;
+  border-radius:8px;
+  text-decoration:none;
+  color:#1f2937;
+}
+.nav a.active{
+  background:var(--brand-weak);
+  color:var(--brand);
+  font-weight:600;
+}
+
+/* Tables */
+.table{
+  width:100%;
+  border-collapse:collapse;
+  font-size:14px;
+}
+.table th,.table td{
+  text-align:left; padding:8px; border-bottom:1px solid var(--border);
+}
+.table thead th{ background:#f9fafb; }
+
+/* Map */
+.map{
+  width:100%;
+  height:50vh;            /* mobile */
+  border:1px solid var(--border);
+  border-radius:10px;
+  overflow:hidden;
+  background:#fff;
+}
+
+/* Mobile-first: sidebar hidden by default */
+.sidebar-overlay{
+  display:none;
+}
+
+/* Desktop */
+@media (min-width: 900px){
+  .grid-cols{
+    grid-template-columns:2fr 1fr;
+  }
+  .map{ height:70vh }     /* bigger map on desktop */
+  .sidebar-overlay{
+    display:none!important;
+  }
+}
+
+/* Mobile sidebar sheet */
+@media (max-width: 899px){
+  .sidebar{
+    position:fixed;
+    top:56px; bottom:0; left:0;
+    transform:translateX(-100%);
+    transition:transform .2s ease;
+    z-index:60;
+  }
+  .sidebar.open{
+    transform:translateX(0);
+  }
+  .sidebar-overlay{
+    position:fixed; inset:56px 0 0 0;
+    background:rgba(0,0,0,.2);
+    display:block;
+    opacity:0; pointer-events:none;
+    transition:opacity .2s ease;
+    z-index:55;
+  }
+  .sidebar-overlay.show{
+    opacity:1; pointer-events:all;
+  }
+}
+
+/* --- Landing page --- */
+.landing { display:grid; gap:16px; }
+.hero { text-align:center; padding:28px; }
+.hero-title{ margin:0 0 6px 0; font-size:22px; font-weight:800; }
+.hero-sub{ margin:0 0 16px 0; color:var(--muted) }
+.hero-actions{ display:flex; justify-content:center; gap:10px }
+.btn-primary{
+  display:inline-block; padding:10px 14px; border-radius:10px;
+  background:var(--brand); color:#fff; text-decoration:none; font-weight:600; border:1px solid var(--brand);
+}
+
+/* Tiles */
+.tiles{
+  display:grid; gap:12px;
+  grid-template-columns: 1fr 1fr;
+}
+@media (min-width: 900px){
+  .tiles{ grid-template-columns: repeat(4, 1fr); }
+}
+.tile{
+  padding:16px; text-decoration:none; color:inherit; transition: transform .05s ease;
+}
+.tile:hover{ transform: translateY(-1px); }
+.tile-title{ font-weight:700; margin-bottom:6px }
+.tile-sub{ color:var(--muted); font-size:14px }
+
+/* Topnav minimal links */
+.topnav{ display:none; gap:10px; align-items:center }
+.topnav .link{ text-decoration:none; color:#1f2937; font-size:14px; padding:6px 8px; border-radius:8px }
+.topnav .active{ background:var(--brand-weak); color:var(--brand); font-weight:600 }
+@media (min-width: 900px){
+  .topnav{ display:flex; }
+}
+
+/* Minimal header + hamburger sheet */
+.menu-overlay{
+  position:fixed; inset:0;
+  background:rgba(0,0,0,.25);
+  opacity:0; pointer-events:none;
+  transition:opacity .15s ease;
+  z-index:80;
+}
+.menu-overlay.show{ opacity:1; pointer-events:auto; }
+
+.menu-panel{
+  position:fixed; top:0; right:0; bottom:0;
+  width:280px; max-width:86vw;
+  background:#fff; border-left:1px solid var(--border);
+  transform:translateX(100%); transition:transform .2s ease;
+  z-index:85; display:flex; flex-direction:column;
+}
+.menu-panel.show{ transform:translateX(0); }
+.menu-header{ height:56px; display:flex; align-items:center; justify-content:space-between; padding:0 12px; border-bottom:1px solid var(--border); }
+.menu-body{ padding:12px; display:grid; gap:8px; }
+.menu-link{ display:block; padding:10px 12px; border-radius:10px; text-decoration:none; color:#1f2937; border:1px solid var(--border); background:#fff; }
+.menu-link:active{ transform:scale(.99); }
+
+.brand-min{ font-weight:800; letter-spacing:.2px; }
+.icon-btn{ background:transparent; border:1px solid var(--border); border-radius:10px; padding:6px 10px; font-size:16px; cursor:pointer; }
+
+/* Ghost link (header) */
+.link-ghost{
+  text-decoration:none; color:#1f2937; font-size:14px;
+  padding:6px 10px; border-radius:10px; border:1px solid var(--border);
+  background:#fff; display:inline-block;
+}
+.link-ghost:active{ transform:scale(.99); }
+@media (max-width: 500px){
+  .link-ghost{ display:none; } /* keep header ultra-minimal on very small screens */
+}
+
+/* Narrow, centered content for landing (hero + tiles share width) */
+.narrow{
+  width:100%;
+  max-width: 860px;   /* adjust this to your taste (780–960px looks great) */
+  margin: 0 auto;
+}
+
+/* Make landing tiles follow the same narrow width and center */
+.landing .hero,
+.landing .tiles{
+  width: 100%;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* Tiles spacing tweak */
+.tiles{ gap:14px; }
+
+/* Search history dropdown styling */
+.results .section{
+  padding:6px 12px; font-size:11px; color:#9ca3af; background:#fafafa; border-bottom:1px solid #f3f4f6;
+}
+.results .linklike{
+  color:#1d4ed8; font-size:12px; cursor:pointer; text-decoration:underline;
+}
+
+/* Ensure the search dropdown never exceeds the narrow width */
+.topbar .search-wrap{ display:flex; justify-content:center; }
+.topbar .search{ max-width: 720px; }  /* keep hero/search elegant */
+
+/* --- Center everything + unify hero/tiles width --- */
+.narrow{
+  width:100%;
+  max-width: 980px;            /* wider so tiles can keep one line comfortably */
+  margin-left:auto;
+  margin-right:auto;
+}
+
+/* Ensure the landing sections use the same centered width */
+.landing .hero,
+.landing .tiles{
+  width:100%;
+  margin-left:auto;
+  margin-right:auto;
+}
+
+/* Tiles: responsive, allow stretching up to hero edges, keep one line */
+.tiles{
+  display:grid;
+  gap:14px;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+}
+.tile{
+  padding:16px;
+  text-decoration:none;
+  color:inherit;
+  transition: transform .05s ease;
+}
+.tile:hover{ transform: translateY(-1px); }
+.tile-title{ font-weight:700; margin-bottom:6px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.tile-sub{ color:var(--muted); font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+
+/* Keep the top search centered and not too wide */
+.topbar .search-wrap{ display:flex; justify-content:center; }
+.topbar .search{ width:100%; max-width: 720px; }
+
+/* Results dropdown aligns to search width; add subtle section headers */
+.results .section{
+  padding:6px 12px; font-size:11px; color:#9ca3af; background:#fafafa; border-bottom:1px solid #f3f4f6;
+}
+
+/* Special style for the first rich answer (from AI) — no 'AI' label shown */
+.results .answer{
+  padding:12px;
+  border-bottom:1px solid #f3f4f6;
+  line-height:1.45;
+}
+
+/* Always keep main content centered on resize */
+.container{ width:100%; max-width:1200px; margin-left:auto; margin-right:auto; }
+
+/* Let the top bar grow when results appear */
+.topbar{
+  /* was: height:56px; */
+  min-height:56px;
+  height:auto;
+  align-items:flex-start; /* so the expanding search sits nicely */
+  flex-wrap:wrap;         /* allow the search/results to wrap on small screens */
+}
+
+/* Make search area full width on small screens so content doesn't get cramped */
+@media (max-width: 700px){
+  .topbar .brand{ padding-right:8px }
+  .topbar .search-wrap{ width:100%; order:2; margin-top:8px }
+  .link-ghost{ order:3 }
+  .icon-btn{ order:4 }
+}
+
+/* Results panel IN THE FLOW (pushes content down) */
+.results{
+  position: static;     /* was: absolute */
+  top: auto; left: auto; right: auto; /* neutralize old values */
+  margin-top: 8px;
+  background:#fff;
+  border:1px solid var(--border);
+  border-radius:10px;
+  box-shadow:0 8px 20px rgba(0,0,0,.06);
+  max-height:50vh;      /* prevent it from taking the whole screen */
+  overflow:auto;
+  z-index:auto;         /* no stacking needed since it's in flow */
+}
+
+/* Keep the search centered and not too wide */
+.topbar .search-wrap{ display:flex; justify-content:center; width:100% }
+.topbar .search{ width:100%; max-width: 720px; }
+
+/* Ensure the main content remains centered at all sizes */
+.container{ width:100%; max-width:1200px; margin-left:auto; margin-right:auto }
+
+/* === Center the results panel to match the search width === */
+.results {
+  position: static;               /* in normal flow so it pushes content down */
+  margin: 12px auto 0 auto;       /* center horizontally under search */
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 8px 20px rgba(0,0,0,.06);
+  width: 100%;
+  max-width: 720px;               /* same cap as the search bar */
+  max-height: 50vh;               /* don’t take over the page */
+  overflow: auto;
+  padding: 12px 16px;
+}
+
+/* Keep the search area centered and constrained */
+.topbar .search-wrap { 
+  display: flex; 
+  justify-content: center; 
+  width: 100%; 
+}
+.topbar .search { 
+  width: 100%; 
+  max-width: 720px; 
+}
+
+/* Let the topbar grow when results appear (so content below remains visible) */
+.topbar{
+  min-height:56px;
+  height:auto;
+  align-items:flex-start;
+  flex-wrap:wrap;
+}
+
+/* On small screens, let header items wrap cleanly */
+@media (max-width: 700px){
+  .topbar .brand{ padding-right:8px }
+  .topbar .search-wrap{ width:100%; order:2; margin-top:8px }
+  .link-ghost{ order:3 }
+  .icon-btn{ order:4 }
+}
+
+/* Keep header compact — do NOT grow when results appear */
+.topbar{
+  height:56px;
+  min-height:56px;
+  align-items:center;
+  flex-wrap:nowrap;
+}
+
+/* Results dock sits under header; center and match search width */
+.results-dock{
+  display:flex;
+  justify-content:center;
+  padding: 0 16px; /* breathing room on mobile edges */
+}
+
+/* Results box itself (already defined earlier) — enforce centered width */
+.results{
+  width:100%;
+  max-width:720px;     /* same cap as search */
+  margin:12px auto 0 auto;
+}
+
+.map-toolbar .count-badge{
+  display:inline-flex; align-items:center; justify-content:center;
+  min-width:22px; height:22px; padding:0 6px;
+  background:#111827; color:#fff; border-radius:999px; font-size:12px; font-weight:600;
+  margin-right:8px;
+}
