@@ -1,63 +1,53 @@
-require('dotenv').config();
+const http = require('http');
+const net = require('net');
 const express = require('express');
-const morgan = require('morgan');
-const helmet = require('helmet');
 const cors = require('cors');
-
-const { connect } = require('./db');
-
-// Optional routers (present in your project)
-let authRouter, authRequired;
-try {
-  ({ router: authRouter, authRequired } = require('./routes/auth'));
-} catch {}
-let aiRouter; try { aiRouter = require('./routes/ai'); } catch {}
-let districtsRouter; try { districtsRouter = require('./routes/districts'); } catch {}
-let regsRouter; try { regsRouter = require('./routes/regulations'); } catch {}
-let searchRouter; try { searchRouter = require('./routes/search'); } catch {}
-let geoRouter; try { geoRouter = require('./routes/geo'); } catch {}
-let projectsRouter; try { projectsRouter = require('./routes/projects'); } catch {}
+require('dotenv').config();
 
 const app = express();
-const PORT = process.env.PORT || 5050;
-const CORS_ORIGIN = process.env.CORS_ORIGIN || '*';
+app.use(cors());
+app.use(express.json());
 
-// Core middleware
-app.use(helmet());
-app.use(cors({ origin: CORS_ORIGIN }));
-app.use(express.json({ limit: '2mb' }));
-app.use(morgan('tiny'));
+// --- your existing routes can stay; here's a harmless health check ---
+app.get('/health', (req, res) => res.json({ ok: true }));
 
-// Health
-app.get('/api/health', (_req, res) => {
-  res.json({ ok: true, service: 'myzone-api', ts: new Date().toISOString() });
-});
+const FIRST_CHOICE = Number(process.env.PORT || 5050);
 
-// Routes
-if (authRouter) app.use('/api/auth', authRouter);
-if (aiRouter) app.use('/api/ai', aiRouter);
-if (districtsRouter) app.use('/api/districts', districtsRouter);
-if (regsRouter) app.use('/api/regulations', regsRouter);
-if (searchRouter) app.use('/api/search', searchRouter);
-if (geoRouter) app.use('/api/geo', geoRouter);
-if (projectsRouter && authRequired) app.use('/api/projects', authRequired, projectsRouter);
+function checkPort(port) {
+  return new Promise((resolve) => {
+    const tester = net.connect({ port, host: '127.0.0.1' }, () => {
+      tester.end();
+      resolve(false); // in use
+    });
+    tester.on('error', () => resolve(true)); // free
+  });
+}
 
-// 404 fallback for /api
-app.use('/api', (_req, res) => res.status(404).json({ error: 'Not Found' }));
+async function findOpenPort(start) {
+  let port = start;
+  for (let i = 0; i < 20; i++) {
+    if (await checkPort(port)) return port;
+    console.log(`Port ${port} in use, trying ${port + 1}...`);
+    port++;
+  }
+  throw new Error('No available port found.');
+}
 
-// Start after DB (if MONGODB_URI provided)
 (async () => {
   try {
-    if (process.env.MONGODB_URI) {
-      await connect(process.env.MONGODB_URI);
-    } else {
-      console.log('⚠️  No MONGODB_URI provided. Running without DB.');
-    }
-    app.listen(PORT, () => {
-      console.log(`✅ MyZone API running on http://localhost:${PORT}`);
+    const port = await findOpenPort(FIRST_CHOICE);
+    const server = http.createServer(app);
+    server.listen(port, '0.0.0.0', () => {
+      console.log(`Server listening on http://localhost:${port}`);
     });
   } catch (err) {
-    console.error('❌ Failed to start server:', err);
+    console.error(err);
     process.exit(1);
   }
 })();
+
+// ----- Static frontend (production only) -----
+import installStaticFrontend from "./static-frontend.js";
+if (process.env.NODE_ENV === "production") {
+  installStaticFrontend(app);
+}
