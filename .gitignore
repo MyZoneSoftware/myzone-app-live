@@ -1,3 +1,6 @@
 node_modules/
 dist/
 .env
+map-api/data/Parcels.geojson
+map-api/data/Situs_Addresses.CSV
+map-api/data/Situs_Addresses.geojson

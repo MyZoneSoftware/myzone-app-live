@@ -1,0 +1,14 @@
+{
+  "name": "myzone-app-live",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "prestart": "lsof -ti tcp:5050 | xargs kill -9 || true",
+    "start": "node src/index.js",
+    "predev": "lsof -ti tcp:5050 | xargs kill -9 || true",
+    "dev": "nodemon src/index.js"
+  },
+  "dependencies": {
+    // ... keep your existing dependencies here ...
+  }
+}

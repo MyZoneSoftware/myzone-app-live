@@ -1,0 +1,20 @@
+{
+  "type": "FeatureCollection",
+  "name": "zoning-sample",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": { "zone": "C-1" },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[
+          [-80.1935,25.7735],
+          [-80.1910,25.7735],
+          [-80.1910,25.7752],
+          [-80.1935,25.7752],
+          [-80.1935,25.7735]
+        ]]
+      }
+    }
+  ]
+}

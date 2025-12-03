@@ -1,0 +1,137 @@
+
+> myzone-client@1.0.0 dev
+> vite
+
+
+  VITE v5.4.19  ready in 89 ms
+
+  ➜  Local:   http://127.0.0.1:5177/
+  ➜  press h + enter to show help
+10:43:51 PM [vite] Pre-transform error: /Users/josue/myzone-app-live/client/src/main.jsx: Identifier 'React' has already been declared. (37:7)
+
+  35 |
+  36 | // ---- Landing portal bootstrap (independent of App layout) ----
+> 37 | import React from 'react';
+     |        ^
+  38 | import ReactDOM from 'react-dom/client';
+  39 | (function mountLanding(){
+  40 |   try {
+10:43:51 PM [vite] Internal server error: /Users/josue/myzone-app-live/client/src/main.jsx: Identifier 'React' has already been declared. (37:7)
+
+  35 |
+  36 | // ---- Landing portal bootstrap (independent of App layout) ----
+> 37 | import React from 'react';
+     |        ^
+  38 | import ReactDOM from 'react-dom/client';
+  39 | (function mountLanding(){
+  40 |   try {
+  Plugin: vite:react-babel
+  File: /Users/josue/myzone-app-live/client/src/main.jsx:37:7
+  35 |  
+  36 |  // ---- Landing portal bootstrap (independent of App layout) ----
+  37 |  import React from 'react';
+     |         ^
+  38 |  import ReactDOM from 'react-dom/client';
+  39 |  (function mountLanding(){
+      at constructor (/Users/josue/myzone-app-live/client/node_modules/@babel/parser/lib/index.js:367:19)
+      at JSXParserMixin.raise (/Users/josue/myzone-app-live/client/node_modules/@babel/parser/lib/index.js:6630:19)
+      at ScopeHandler.checkRedeclarationInScope (/Users/josue/myzone-app-live/client/node_modules/@babel/parser/lib/index.js:1647:19)
+      at ScopeHandler.declareName (/Users/josue/myzone-app-live/client/node_modules/@babel/parser/lib/index.js:1613:12)
+      at JSXParserMixin.declareNameFromIdentifier (/Users/josue/myzone-app-live/client/node_modules/@babel/parser/lib/index.js:7594:16)
+      at JSXParserMixin.checkIdentifier (/Users/josue/myzone-app-live/client/node_modules/@babel/parser/lib/index.js:7590:12)
+      at JSXParserMixin.checkLVal (/Users/josue/myzone-app-live/client/node_modules/@babel/parser/lib/index.js:7529:12)
+      at JSXParserMixin.finishImportSpecifier (/Users/josue/myzone-app-live/client/node_modules/@babel/parser/lib/index.js:14271:10)
+      at JSXParserMixin.parseImportSpecifierLocal (/Users/josue/myzone-app-live/client/node_modules/@babel/parser/lib/index.js:14268:31)
+      at JSXParserMixin.maybeParseDefaultImportSpecifier (/Users/josue/myzone-app-live/client/node_modules/@babel/parser/lib/index.js:14375:12)
+      at JSXParserMixin.parseImportSpecifiersAndAfter (/Users/josue/myzone-app-live/client/node_modules/@babel/parser/lib/index.js:14244:29)
+      at JSXParserMixin.parseImport (/Users/josue/myzone-app-live/client/node_modules/@babel/parser/lib/index.js:14240:17)
+      at JSXParserMixin.parseStatementContent (/Users/josue/myzone-app-live/client/node_modules/@babel/parser/lib/index.js:12881:27)
+      at JSXParserMixin.parseStatementLike (/Users/josue/myzone-app-live/client/node_modules/@babel/parser/lib/index.js:12772:17)
+      at JSXParserMixin.parseModuleItem (/Users/josue/myzone-app-live/client/node_modules/@babel/parser/lib/index.js:12749:17)
+      at JSXParserMixin.parseBlockOrModuleBlockBody (/Users/josue/myzone-app-live/client/node_modules/@babel/parser/lib/index.js:13321:36)
+      at JSXParserMixin.parseBlockBody (/Users/josue/myzone-app-live/client/node_modules/@babel/parser/lib/index.js:13314:10)
+      at JSXParserMixin.parseProgram (/Users/josue/myzone-app-live/client/node_modules/@babel/parser/lib/index.js:12630:10)
+      at JSXParserMixin.parseTopLevel (/Users/josue/myzone-app-live/client/node_modules/@babel/parser/lib/index.js:12620:25)
+      at JSXParserMixin.parse (/Users/josue/myzone-app-live/client/node_modules/@babel/parser/lib/index.js:14497:10)
+      at parse (/Users/josue/myzone-app-live/client/node_modules/@babel/parser/lib/index.js:14531:38)
+      at parser (/Users/josue/myzone-app-live/client/node_modules/@babel/core/lib/parser/index.js:41:34)
+      at parser.next (<anonymous>)
+      at normalizeFile (/Users/josue/myzone-app-live/client/node_modules/@babel/core/lib/transformation/normalize-file.js:64:37)
+      at normalizeFile.next (<anonymous>)
+      at run (/Users/josue/myzone-app-live/client/node_modules/@babel/core/lib/transformation/index.js:22:50)
+      at run.next (<anonymous>)
+      at transform (/Users/josue/myzone-app-live/client/node_modules/@babel/core/lib/transform.js:22:33)
+      at transform.next (<anonymous>)
+      at step (/Users/josue/myzone-app-live/client/node_modules/gensync/index.js:261:32)
+      at /Users/josue/myzone-app-live/client/node_modules/gensync/index.js:273:13
+      at async.call.result.err.err (/Users/josue/myzone-app-live/client/node_modules/gensync/index.js:223:11)
+      at /Users/josue/myzone-app-live/client/node_modules/gensync/index.js:189:28
+      at /Users/josue/myzone-app-live/client/node_modules/@babel/core/lib/gensync-utils/async.js:67:7
+      at /Users/josue/myzone-app-live/client/node_modules/gensync/index.js:113:33
+      at step (/Users/josue/myzone-app-live/client/node_modules/gensync/index.js:287:14)
+      at /Users/josue/myzone-app-live/client/node_modules/gensync/index.js:273:13
+      at async.call.result.err.err (/Users/josue/myzone-app-live/client/node_modules/gensync/index.js:223:11)
+10:43:55 PM [vite] Pre-transform error: /Users/josue/myzone-app-live/client/src/main.jsx: Identifier 'React' has already been declared. (37:7)
+
+  35 |
+  36 | // ---- Landing portal bootstrap (independent of App layout) ----
+> 37 | import React from 'react';
+     |        ^
+  38 | import ReactDOM from 'react-dom/client';
+  39 | (function mountLanding(){
+  40 |   try {
+10:43:55 PM [vite] Internal server error: /Users/josue/myzone-app-live/client/src/main.jsx: Identifier 'React' has already been declared. (37:7)
+
+  35 |
+  36 | // ---- Landing portal bootstrap (independent of App layout) ----
+> 37 | import React from 'react';
+     |        ^
+  38 | import ReactDOM from 'react-dom/client';
+  39 | (function mountLanding(){
+  40 |   try {
+  Plugin: vite:react-babel
+  File: /Users/josue/myzone-app-live/client/src/main.jsx:37:7
+  35 |  
+  36 |  // ---- Landing portal bootstrap (independent of App layout) ----
+  37 |  import React from 'react';
+     |         ^
+  38 |  import ReactDOM from 'react-dom/client';
+  39 |  (function mountLanding(){
+      at constructor (/Users/josue/myzone-app-live/client/node_modules/@babel/parser/lib/index.js:367:19)
+      at JSXParserMixin.raise (/Users/josue/myzone-app-live/client/node_modules/@babel/parser/lib/index.js:6630:19)
+      at ScopeHandler.checkRedeclarationInScope (/Users/josue/myzone-app-live/client/node_modules/@babel/parser/lib/index.js:1647:19)
+      at ScopeHandler.declareName (/Users/josue/myzone-app-live/client/node_modules/@babel/parser/lib/index.js:1613:12)
+      at JSXParserMixin.declareNameFromIdentifier (/Users/josue/myzone-app-live/client/node_modules/@babel/parser/lib/index.js:7594:16)
+      at JSXParserMixin.checkIdentifier (/Users/josue/myzone-app-live/client/node_modules/@babel/parser/lib/index.js:7590:12)
+      at JSXParserMixin.checkLVal (/Users/josue/myzone-app-live/client/node_modules/@babel/parser/lib/index.js:7529:12)
+      at JSXParserMixin.finishImportSpecifier (/Users/josue/myzone-app-live/client/node_modules/@babel/parser/lib/index.js:14271:10)
+      at JSXParserMixin.parseImportSpecifierLocal (/Users/josue/myzone-app-live/client/node_modules/@babel/parser/lib/index.js:14268:31)
+      at JSXParserMixin.maybeParseDefaultImportSpecifier (/Users/josue/myzone-app-live/client/node_modules/@babel/parser/lib/index.js:14375:12)
+      at JSXParserMixin.parseImportSpecifiersAndAfter (/Users/josue/myzone-app-live/client/node_modules/@babel/parser/lib/index.js:14244:29)
+      at JSXParserMixin.parseImport (/Users/josue/myzone-app-live/client/node_modules/@babel/parser/lib/index.js:14240:17)
+      at JSXParserMixin.parseStatementContent (/Users/josue/myzone-app-live/client/node_modules/@babel/parser/lib/index.js:12881:27)
+      at JSXParserMixin.parseStatementLike (/Users/josue/myzone-app-live/client/node_modules/@babel/parser/lib/index.js:12772:17)
+      at JSXParserMixin.parseModuleItem (/Users/josue/myzone-app-live/client/node_modules/@babel/parser/lib/index.js:12749:17)
+      at JSXParserMixin.parseBlockOrModuleBlockBody (/Users/josue/myzone-app-live/client/node_modules/@babel/parser/lib/index.js:13321:36)
+      at JSXParserMixin.parseBlockBody (/Users/josue/myzone-app-live/client/node_modules/@babel/parser/lib/index.js:13314:10)
+      at JSXParserMixin.parseProgram (/Users/josue/myzone-app-live/client/node_modules/@babel/parser/lib/index.js:12630:10)
+      at JSXParserMixin.parseTopLevel (/Users/josue/myzone-app-live/client/node_modules/@babel/parser/lib/index.js:12620:25)
+      at JSXParserMixin.parse (/Users/josue/myzone-app-live/client/node_modules/@babel/parser/lib/index.js:14497:10)
+      at parse (/Users/josue/myzone-app-live/client/node_modules/@babel/parser/lib/index.js:14531:38)
+      at parser (/Users/josue/myzone-app-live/client/node_modules/@babel/core/lib/parser/index.js:41:34)
+      at parser.next (<anonymous>)
+      at normalizeFile (/Users/josue/myzone-app-live/client/node_modules/@babel/core/lib/transformation/normalize-file.js:64:37)
+      at normalizeFile.next (<anonymous>)
+      at run (/Users/josue/myzone-app-live/client/node_modules/@babel/core/lib/transformation/index.js:22:50)
+      at run.next (<anonymous>)
+      at transform (/Users/josue/myzone-app-live/client/node_modules/@babel/core/lib/transform.js:22:33)
+      at transform.next (<anonymous>)
+      at step (/Users/josue/myzone-app-live/client/node_modules/gensync/index.js:261:32)
+      at /Users/josue/myzone-app-live/client/node_modules/gensync/index.js:273:13
+      at async.call.result.err.err (/Users/josue/myzone-app-live/client/node_modules/gensync/index.js:223:11)
+      at /Users/josue/myzone-app-live/client/node_modules/gensync/index.js:189:28
+      at /Users/josue/myzone-app-live/client/node_modules/@babel/core/lib/gensync-utils/async.js:67:7
+      at /Users/josue/myzone-app-live/client/node_modules/gensync/index.js:113:33
+      at step (/Users/josue/myzone-app-live/client/node_modules/gensync/index.js:287:14)
+      at /Users/josue/myzone-app-live/client/node_modules/gensync/index.js:273:13
+      at async.call.result.err.err (/Users/josue/myzone-app-live/client/node_modules/gensync/index.js:223:11)

@@ -1,0 +1,75 @@
+:root{ --border:#e5e7eb; }
+
+/* ---------- Header stays on top (but we DO NOT restyle it) ---------- */
+header, .topbar, .app-header { position: relative; z-index: 1000; }
+
+/* ---------- Minimalist centered search (landing) ---------- */
+.hero-shell{
+  display:flex; align-items:center; justify-content:center;
+  min-height: 42vh; /* center in upper half */
+  padding: 24px 16px;
+}
+.hero-card{
+  width: min(820px, 92%);
+  background:#fff; border:1px solid var(--border); border-radius:16px;
+  padding: 18px; box-shadow: 0 8px 20px rgba(0,0,0,.05);
+}
+.hero-title{ font-size: 18px; font-weight:600; margin-bottom:10px; color:#111827; }
+.hero-search{
+  position:relative;
+  display:flex; gap:8px; align-items:center;
+}
+.hero-search input{
+  flex:1 1 auto; width:100%;
+  padding:12px 14px; border:1px solid var(--border); border-radius:12px; background:#fff;
+  font-size:16px;
+}
+.hero-search button{
+  flex:0 0 auto;
+  border:1px solid var(--border); background:#fff; border-radius:12px; padding:12px 14px; cursor:pointer; line-height:1;
+}
+.hero-hint{ margin-top:8px; font-size:12px; color:#6b7280; }
+
+/* ---------- Map card ONLY (no global impact) ---------- */
+.map-card{ position:relative; display:flex; flex-direction:column; gap:12px; }
+
+/* Toolbar above the map — minimal & non-intrusive */
+.map-card .toolbar-v2{
+  position:relative; z-index:10;
+  background:#fff; border:1px solid var(--border); border-radius:12px;
+  padding:10px 12px;
+}
+.map-card .toolbar-v2 .toolbar-row{
+  display:flex; flex-wrap:wrap; align-items:center; gap:8px; width:100%;
+}
+.map-card .toolbar-v2 .map-search{ position:relative; min-width:260px; flex:1 1 640px; }
+.map-card .toolbar-v2 .map-search input{
+  width:100%; padding:8px 10px; border:1px solid var(--border); border-radius:8px; background:#fff;
+}
+.map-card .toolbar-v2 .map-search-results{
+  position:absolute; top:38px; left:0; right:0; max-height:220px; overflow:auto;
+  background:#fff; border:1px solid var(--border); border-radius:8px; z-index:20;
+}
+.map-card .toolbar-v2 .controls-row{ display:flex; flex-wrap:wrap; gap:8px; margin-top:6px; }
+.map-card .mapctl-btn{
+  border:1px solid var(--border); background:#fff; border-radius:8px; padding:6px 10px; line-height:1; cursor:pointer; white-space:nowrap;
+}
+.map-card .toggle{
+  display:inline-flex; align-items:center; gap:6px; padding:4px 6px; border:1px solid var(--border); border-radius:8px; background:#fff; white-space:nowrap;
+}
+
+/* Map sizing (inside the map card only); below header; cannot cover header */
+.map-card .map-root{
+  position:relative; z-index:1;
+  height: calc(100vh - 220px); /* leaves room for header + hero */
+  min-height: 420px;
+}
+.map-card .leaflet-container{ z-index:1; }
+.map-card .leaflet-pane{ z-index:1; }
+.map-card .leaflet-control-container{ z-index:5; }
+
+/* Small screens: stack controls */
+@media (max-width:900px){
+  .map-card .toolbar-v2 .controls-row{ display:grid; grid-template-columns:1fr; }
+  .map-card .toolbar-v2 .mapctl-btn, .map-card .toolbar-v2 .toggle{ width:100%; justify-content:flex-start; }
+}
