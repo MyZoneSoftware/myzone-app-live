@@ -1,0 +1,92 @@
+/* ===== Modern minimalist landing overlay ===== */
+:root{
+  --text:#0f172a;      /* slate-900 */
+  --muted:#6b7280;     /* gray-500  */
+  --bd:#e5e7eb;        /* gray-200  */
+  --bg:#ffffff;
+  --primary:#2563eb;   /* indigo-600 */
+  --ring:0 0 0 3px rgba(37,99,235,.15);
+}
+
+.landing-portal{
+  position: fixed; inset: 0;
+  background:
+    radial-gradient(1200px 600px at 20% 0%, rgba(37,99,235,.06), transparent 55%),
+    radial-gradient(1200px 600px at 80% 0%, rgba(16,185,129,.06), transparent 55%);
+  display:flex; align-items:center; justify-content:center;
+  z-index: 10000; /* above map/header */
+}
+.landing{
+  width: min(960px, 92%);
+  padding: 0 16px;
+}
+.landing-card{
+  background: var(--bg);
+  border: 1px solid var(--bd);
+  border-radius: 18px;
+  padding: 26px;
+  box-shadow: 0 26px 60px rgba(0,0,0,.08);
+}
+.landing-title{
+  margin: 0 0 4px 0;
+  font-size: 30px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: var(--text);
+}
+.landing-subtitle{
+  margin: 0 0 18px 0;
+  font-size: 14px;
+  color: var(--muted);
+}
+.landing-row{
+  display:flex; gap: 10px; align-items:center;
+}
+.landing-input{
+  flex:1 1 auto;
+  padding: 14px 16px; font-size:16px; line-height:1.25;
+  background:#fff; border:1px solid var(--bd); border-radius:14px; outline:none;
+  transition: border-color .12s ease, box-shadow .12s ease;
+}
+.landing-input:focus{ border-color: var(--primary); box-shadow: var(--ring); }
+.landing-btn{
+  flex:0 0 auto;
+  padding: 12px 16px; font-size:15px; font-weight:600;
+  background:#fff; border:1px solid var(--bd); border-radius:14px; cursor:pointer;
+  transition: border-color .12s ease, box-shadow .12s ease, transform .08s ease;
+}
+.landing-btn:hover{ border-color:var(--primary); box-shadow: var(--ring); }
+.landing-btn:active{ transform: translateY(1px); }
+.landing-hint{ margin-top: 10px; font-size:12px; color: var(--muted); }
+
+/* Mobile */
+@media (max-width: 900px){
+  .landing-row{ flex-direction: column; align-items: stretch; }
+  .landing-btn{ width:100%; }
+}
+
+/* ===== Tiles: left-edge highlight only on hover ===== */
+.tile, .card-tile, .panel-tile, .feature-tile, .app-tile, .grid-tile{
+  position: relative;
+  background:#fff; border:1px solid var(--bd); border-radius:14px;
+  transition: transform .12s ease, box-shadow .12s ease, border-color .12s ease;
+}
+.tile::before, .card-tile::before, .panel-tile::before, .feature-tile::before, .app-tile::before, .grid-tile::before{
+  content:""; position:absolute; left:0; top:0; bottom:0; width:0;
+  background: var(--primary);
+  border-top-left-radius:14px; border-bottom-left-radius:14px;
+  transition: width .12s ease;
+}
+.tile:hover::before, .card-tile:hover::before, .panel-tile:hover::before, .feature-tile:hover::before, .app-tile:hover::before, .grid-tile:hover::before{ width:6px; }
+.tile:hover, .card-tile:hover, .panel-tile:hover, .feature-tile:hover, .app-tile:hover, .grid-tile:hover{
+  transform: translateY(-1px);
+  box-shadow: 0 14px 30px rgba(0,0,0,.08);
+  border-color: #dbe1ea;
+}
+
+/* ===== Map toolbar containment (scoped; avoids overlap) ===== */
+.map-card .toolbar-v2{ position:relative; z-index:10; background:#fff; border:1px solid var(--bd); border-radius:12px; padding:10px 12px; }
+.map-card .toolbar-v2 .controls-row{ display:flex; flex-wrap:wrap; align-items:center; gap:8px; width:100%; }
+.map-card .mapctl-btn, .map-card .toggle{ flex:0 0 auto; white-space:nowrap; }
+.map-card .map-root{ position:relative; z-index:1; }
+.map-card .leaflet-container, .map-card .leaflet-pane, .map-card .leaflet-control-container{ z-index:1; }

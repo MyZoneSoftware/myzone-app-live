@@ -1,0 +1,216 @@
+:root{ --border:#e5e7eb; }
+
+/* ---------- Header stays on top (but we DO NOT restyle it) ---------- */
+header, .topbar, .app-header { position: relative; z-index: 1000; }
+
+/* ---------- Minimalist centered search (landing) ---------- */
+.hero-shell{
+  display:flex; align-items:center; justify-content:center;
+  min-height: 42vh; /* center in upper half */
+  padding: 24px 16px;
+}
+.hero-card{
+  width: min(820px, 92%);
+  background:#fff; border:1px solid var(--border); border-radius:16px;
+  padding: 18px; box-shadow: 0 8px 20px rgba(0,0,0,.05);
+}
+.hero-title{ font-size: 18px; font-weight:600; margin-bottom:10px; color:#111827; }
+.hero-search{
+  position:relative;
+  display:flex; gap:8px; align-items:center;
+}
+.hero-search input{
+  flex:1 1 auto; width:100%;
+  padding:12px 14px; border:1px solid var(--border); border-radius:12px; background:#fff;
+  font-size:16px;
+}
+.hero-search button{
+  flex:0 0 auto;
+  border:1px solid var(--border); background:#fff; border-radius:12px; padding:12px 14px; cursor:pointer; line-height:1;
+}
+.hero-hint{ margin-top:8px; font-size:12px; color:#6b7280; }
+
+/* ---------- Map card ONLY (no global impact) ---------- */
+.map-card{ position:relative; display:flex; flex-direction:column; gap:12px; }
+
+/* Toolbar above the map — minimal & non-intrusive */
+.map-card .toolbar-v2{
+  position:relative; z-index:10;
+  background:#fff; border:1px solid var(--border); border-radius:12px;
+  padding:10px 12px;
+}
+.map-card .toolbar-v2 .toolbar-row{
+  display:flex; flex-wrap:wrap; align-items:center; gap:8px; width:100%;
+}
+.map-card .toolbar-v2 .map-search{ position:relative; min-width:260px; flex:1 1 640px; }
+.map-card .toolbar-v2 .map-search input{
+  width:100%; padding:8px 10px; border:1px solid var(--border); border-radius:8px; background:#fff;
+}
+.map-card .toolbar-v2 .map-search-results{
+  position:absolute; top:38px; left:0; right:0; max-height:220px; overflow:auto;
+  background:#fff; border:1px solid var(--border); border-radius:8px; z-index:20;
+}
+.map-card .toolbar-v2 .controls-row{ display:flex; flex-wrap:wrap; gap:8px; margin-top:6px; }
+.map-card .mapctl-btn{
+  border:1px solid var(--border); background:#fff; border-radius:8px; padding:6px 10px; line-height:1; cursor:pointer; white-space:nowrap;
+}
+.map-card .toggle{
+  display:inline-flex; align-items:center; gap:6px; padding:4px 6px; border:1px solid var(--border); border-radius:8px; background:#fff; white-space:nowrap;
+}
+
+/* Map sizing (inside the map card only); below header; cannot cover header */
+.map-card .map-root{
+  position:relative; z-index:1;
+  height: calc(100vh - 220px); /* leaves room for header + hero */
+  min-height: 420px;
+}
+.map-card .leaflet-container{ z-index:1; }
+.map-card .leaflet-pane{ z-index:1; }
+.map-card .leaflet-control-container{ z-index:5; }
+
+/* Small screens: stack controls */
+@media (max-width:900px){
+  .map-card .toolbar-v2 .controls-row{ display:grid; grid-template-columns:1fr; }
+  .map-card .toolbar-v2 .mapctl-btn, .map-card .toolbar-v2 .toggle{ width:100%; justify-content:flex-start; }
+}
+
+/* Floating controls: bottom-left, stacked, always above map */
+.floating-controls{
+  position: fixed;
+  bottom: 16px;
+  left: 16px;
+  z-index: 20000;              /* above all Leaflet UI */
+  display: grid;
+  grid-auto-rows: min-content;
+  row-gap: 6px;
+  pointer-events: auto;
+}
+.floating-controls .mapctl-btn{
+  border: 1px solid #e5e7eb;
+  background: #fff;
+  border-radius: 8px;
+  padding: 6px 10px;
+  line-height: 1;
+  cursor: pointer;
+  white-space: nowrap;
+  box-shadow: 0 1px 6px rgba(0,0,0,0.08);
+}
+
+/* Keep main toolbar above the map as well */
+.toolbar-v2{ position: relative; z-index: 10000; }
+.map-root{ position: relative; z-index: 1; }
+
+/* Map height (ensure map is visible under the floating controls) */
+.map-root { height: calc(100vh - 160px); min-height: 420px; }
+/* ---------- Minimalist landing (centered search) ---------- */
+.landing{
+  display:flex; align-items:center; justify-content:center;
+  min-height:42vh; padding:24px 16px;
+}
+.landing-card{
+  width:min(820px, 92%);
+  background:#fff; border:1px solid #e5e7eb; border-radius:16px;
+  padding:18px; box-shadow:0 8px 20px rgba(0,0,0,.05);
+}
+.landing-title{ font-size:18px; font-weight:600; margin-bottom:10px; color:#111827; }
+.landing-row{ display:flex; gap:10px; align-items:center; }
+.landing-row input{
+  flex:1 1 auto; width:100%;
+  padding:12px 14px; border:1px solid #e5e7eb; border-radius:12px; background:#fff; font-size:16px;
+}
+.landing-row button{
+  flex:0 0 auto; border:1px solid #e5e7eb; background:#fff; border-radius:12px;
+  padding:12px 14px; cursor:pointer; line-height:1;
+}
+.landing-hint{ margin-top:8px; font-size:12px; color:#6b7280; }
+
+/* ---------- Tiles: left edge highlight only on hover ---------- */
+/* Works for common tile class names without changing layout */
+.tiles-grid [class*="tile"],
+[class*="tile"].tile-card,
+.card-tile,
+.panel-tile,
+.tile {
+  position: relative;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  background: #fff;
+  transition: transform .12s ease, box-shadow .12s ease;
+}
+.tiles-grid [class*="tile"]::before,
+[class*="tile"].tile-card::before,
+.card-tile::before,
+.panel-tile::before,
+.tile::before{
+  content:"";
+  position:absolute; left:0; top:0; bottom:0; width:0;
+  background:#2563eb;              /* indicator color */
+  border-top-left-radius:12px;
+  border-bottom-left-radius:12px;
+  transition: width .12s ease;
+}
+.tiles-grid [class*="tile"]:hover::before,
+[class*="tile"].tile-card:hover::before,
+.card-tile:hover::before,
+.panel-tile:hover::before,
+.tile:hover::before{
+  width:6px;                        /* ONLY the left edge highlights */
+}
+.tiles-grid [class*="tile"]:hover,
+[class*="tile"].tile-card:hover,
+.card-tile:hover,
+.panel-tile:hover,
+.tile:hover{
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(0,0,0,.06);
+}
+
+/* ---------- Map toolbar safety so it doesn't overlap UI (scoped) ---------- */
+.map-card .toolbar-v2{ position:relative; z-index:10; background:#fff; border:1px solid #e5e7eb; border-radius:12px; padding:10px 12px; }
+.map-card .toolbar-v2 .controls-row{ display:flex; flex-wrap:wrap; align-items:center; gap:8px; width:100%; }
+.map-card .mapctl-btn, .map-card .toggle{ flex:0 0 auto; white-space:nowrap; }
+.map-card .map-root{ position:relative; z-index:1; }
+.map-card .leaflet-container, .map-card .leaflet-pane, .map-card .leaflet-control-container{ z-index:1; }
+@media (max-width:900px){
+  .landing{ min-height:48vh; }
+  .landing-row{ flex-direction:column; align-items:stretch; }
+  .landing-row button{ width:100%; }
+  .map-card .toolbar-v2 .controls-row{ display:grid; grid-template-columns:1fr; }
+  .map-card .mapctl-btn, .map-card .toggle{ width:100%; justify-content:flex-start; }
+}
+:root{
+  --text:#0f172a; --muted:#6b7280; --bd:#e5e7eb; --bg:#ffffff; --primary:#2563eb; --ring:0 0 0 3px rgba(37,99,235,.15);
+}
+.landing-portal{ position:fixed; inset:0; display:flex; align-items:center; justify-content:center; z-index:10000;
+  background:
+    radial-gradient(1200px 600px at 20% 0%, rgba(37,99,235,.06), transparent 55%),
+    radial-gradient(1200px 600px at 80% 0%, rgba(16,185,129,.06), transparent 55%); }
+.landing{ width:min(960px,92%); padding:0 16px; }
+.landing-card{ background:var(--bg); border:1px solid var(--bd); border-radius:18px; padding:26px; box-shadow:0 26px 60px rgba(0,0,0,.08); }
+.landing-title{ margin:0 0 4px 0; font-size:30px; font-weight:800; letter-spacing:-0.01em; color:var(--text); }
+.landing-subtitle{ margin:0 0 18px 0; font-size:14px; color:var(--muted); }
+.landing-row{ display:flex; gap:10px; align-items:center; }
+.landing-input{ flex:1 1 auto; padding:14px 16px; font-size:16px; line-height:1.25; background:#fff; border:1px solid var(--bd); border-radius:14px; outline:none; transition:border-color .12s, box-shadow .12s; }
+.landing-input:focus{ border-color:var(--primary); box-shadow:var(--ring); }
+.landing-btn{ flex:0 0 auto; padding:12px 16px; font-size:15px; font-weight:600; background:#fff; border:1px solid var(--bd); border-radius:14px; cursor:pointer; transition:border-color .12s, box-shadow .12s, transform .08s; }
+.landing-btn:hover{ border-color:var(--primary); box-shadow:var(--ring); }
+.landing-btn:active{ transform: translateY(1px); }
+.landing-hint{ margin-top:10px; font-size:12px; color:var(--muted); }
+
+/* Tiles: left-edge highlight only on hover */
+.tile,.card-tile,.panel-tile,.feature-tile,.app-tile,.grid-tile{ position:relative; background:#fff; border:1px solid var(--bd); border-radius:14px; transition:transform .12s, box-shadow .12s, border-color .12s; }
+.tile::before,.card-tile::before,.panel-tile::before,.feature-tile::before,.app-tile::before,.grid-tile::before{ content:""; position:absolute; left:0; top:0; bottom:0; width:0; background:var(--primary); border-top-left-radius:14px; border-bottom-left-radius:14px; transition:width .12s; }
+.tile:hover::before,.card-tile:hover::before,.panel-tile:hover::before,.feature-tile:hover::before,.app-tile:hover::before,.grid-tile:hover::before{ width:6px; }
+.tile:hover,.card-tile:hover,.panel-tile:hover,.feature-tile:hover,.app-tile:hover,.grid-tile:hover{ transform:translateY(-1px); box-shadow:0 14px 30px rgba(0,0,0,.08); border-color:#dbe1ea; }
+
+/* Map containment (scoped) */
+.map-card .toolbar-v2{ position:relative; z-index:10; background:#fff; border:1px solid var(--bd); border-radius:12px; padding:10px 12px; }
+.map-card .toolbar-v2 .controls-row{ display:flex; flex-wrap:wrap; align-items:center; gap:8px; width:100%; }
+.map-card .mapctl-btn, .map-card .toggle{ flex:0 0 auto; white-space:nowrap; }
+.map-card .map-root{ position:relative; z-index:1; }
+.map-card .leaflet-container, .map-card .leaflet-pane, .map-card .leaflet-control-container{ z-index:1; }
+
+@media (max-width:900px){
+  .landing-row{ flex-direction:column; align-items:stretch; }
+  .landing-btn{ width:100%; }
+}

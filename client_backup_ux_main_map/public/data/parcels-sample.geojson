@@ -1,0 +1,44 @@
+{
+  "type": "FeatureCollection",
+  "name": "parcels-sample",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "parcel_id": "MIAMI-0001",
+        "owner": "Sunshine Holdings LLC",
+        "addr": "100 S Biscayne Blvd, Miami, FL",
+        "acres": 1.25
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[
+          [-80.1928,25.7738],
+          [-80.1919,25.7738],
+          [-80.1919,25.7746],
+          [-80.1928,25.7746],
+          [-80.1928,25.7738]
+        ]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "parcel_id": "ORL-0002",
+        "owner": "Lakeview Partners",
+        "addr": "400 W Church St, Orlando, FL",
+        "acres": 2.10
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[
+          [-81.3846,28.5405],
+          [-81.3838,28.5405],
+          [-81.3838,28.5412],
+          [-81.3846,28.5412],
+          [-81.3846,28.5405]
+        ]]
+      }
+    }
+  ]
+}

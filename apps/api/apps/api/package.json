@@ -1,0 +1,113 @@
+{
+  "name": "myzone-api",
+  "version": "1.1.0",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "dev": "NODE_ENV=development nodemon server.js",
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "morgan": "^1.10.0",
+    "openai": "^4.0.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.0"
+  }
+}
+EOF```
+
+### B. `apps/api/server.js`
+```bash
+nano apps/api/server.js
+import 'dotenv/config';
+import express from 'express';
+import cors from 'cors';
+import morgan from 'morgan';
+import chatRoute from './src/routes/chat.js';
+
+const app = express();
+
+app.use(express.json());
+app.use(morgan('dev'));
+
+const allowed = process.env.ALLOWED_ORIGIN?.split(',').map(s => s.trim());
+app.use(cors({
+  origin: (origin, cb) => {
+    if (!origin || !allowed) return cb(null, true);
+    return cb(null, allowed.includes(origin));
+  }
+}));
+
+app.get('/api/health', (_, res) => res.json({ ok: true, ts: new Date().toISOString() }));
+app.use('/api/chat', chatRoute);
+
+const port = process.env.PORT || 8080;
+app.listen(port, () => console.log(`API listening on :${port}`));
+EOF```
+
+### C. `apps/api/src/openai.js`
+```bash
+nano apps/api/src/openai.js
+import OpenAI from 'openai';
+
+export function getOpenAI() {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) throw new Error('Missing OPENAI_API_KEY');
+  return new OpenAI({ apiKey });
+}
+EOF```
+
+### D. `apps/api/src/routes/chat.js`
+```bash
+nano apps/api/src/routes/chat.js
+import { Router } from 'express';
+import { getOpenAI } from '../openai.js';
+
+const router = Router();
+
+/**
+ * POST /api/chat
+ * body: { prompt: string }
+ * Returns: { answer: string }
+ */
+router.post('/', async (req, res) => {
+  try {
+    const prompt = (req.body?.prompt || '').trim();
+    if (!prompt) return res.status(400).json({ error: 'prompt is required' });
+
+    const client = getOpenAI();
+    const model = process.env.OPENAI_MODEL || 'gpt-4o-mini';
+
+    const completion = await client.chat.completions.create({
+      model,
+      messages: [
+        { role: 'system', content: 'You are a helpful land planning assistant.' },
+        { role: 'user', content: prompt }
+      ],
+      temperature: 0.2
+    });
+
+    const answer = completion.choices?.[0]?.message?.content?.trim() || '';
+    return res.json({ answer });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+export default router;
+EOF```
+
+> Your `.env` file already exists — good. (Because your key appeared in Terminal history, I recommend **regenerating** it later for safety.)
+
+---
+
+## 2) Install and run the API
+
+```bash
+cd ~/myzone-app-live/apps/api
+npm ci
+npm run dev
