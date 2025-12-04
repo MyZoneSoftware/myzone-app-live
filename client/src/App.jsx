@@ -17,26 +17,51 @@ import {
   getZoningGeoJSON,
 } from "./services/parcelService";
 
-import FeasibilityModal from "./components/FeasibilityModal";
-import ZoningReportPanel from "./components/ZoningReportPanel";
-
 const DEFAULT_CENTER = { lat: 26.64, lng: -80.09 };
 const DEFAULT_ZOOM = 13;
+const BRAND_BLUE = "#0f172a"; // structural accents
+const BRAND_LIGHT_BLUE = "#2563eb"; // emphasized lighter blue for logo text
 
-// ----------------- Inner Map Component -----------------
+// Sample Florida regions for the jurisdiction modal
+const FL_REGIONS = [
+  { value: "Palm Beach County, FL", label: "Palm Beach County", type: "County" },
+  {
+    value: "Palm Beach County, FL · Village of Palm Springs",
+    label: "Village of Palm Springs",
+    type: "Municipality",
+  },
+  { value: "Broward County, FL", label: "Broward County", type: "County" },
+  { value: "Miami-Dade County, FL", label: "Miami-Dade County", type: "County" },
+  { value: "Orange County, FL · Orlando", label: "City of Orlando", type: "Municipality" },
+  { value: "Hillsborough County, FL · Tampa", label: "City of Tampa", type: "Municipality" },
+  {
+    value: "Duval County, FL · Jacksonville",
+    label: "City of Jacksonville",
+    type: "Municipality",
+  },
+  {
+    value: "Other Florida jurisdictions (coming soon)",
+    label: "Other Florida jurisdictions",
+    type: "Coming soon",
+  },
+];
+
+// ---------- Small helpers / components ----------
+
 function InteractiveMap({
   center,
   zoom,
-  onParcelClick,
+  onMapClick,
   boundaries,
   parcels,
   zoning,
+  selectedParcel,
   bufferReport,
 }) {
   const map = useMapEvents({
-    click: async (e) => {
+    click: (e) => {
       const { lat, lng } = e.latlng;
-      onParcelClick(lat, lng);
+      onMapClick(lat, lng);
     },
   });
 
@@ -61,7 +86,7 @@ function InteractiveMap({
   };
 
   const zoningStyle = {
-    color: "#6366f1",
+    color: "#0ea5e9",
     weight: 0.6,
     fillOpacity: 0.08,
   };
@@ -69,6 +94,20 @@ function InteractiveMap({
   const bufferCenter =
     bufferReport && bufferReport.center
       ? [bufferReport.center.lat, bufferReport.center.lng]
+      : null;
+
+  const selectedFeatureCollection =
+    selectedParcel && selectedParcel.geometry
+      ? {
+          type: "FeatureCollection",
+          features: [
+            {
+              type: "Feature",
+              properties: {},
+              geometry: selectedParcel.geometry,
+            },
+          ],
+        }
       : null;
 
   return (
@@ -84,10 +123,21 @@ function InteractiveMap({
 
       {parcels && <GeoJSON data={parcels} style={parcelStyle} />}
 
+      {selectedFeatureCollection && (
+        <GeoJSON
+          data={selectedFeatureCollection}
+          style={{
+            color: "#ef4444",
+            weight: 2,
+            fillOpacity: 0,
+          }}
+        />
+      )}
+
       {bufferReport && bufferCenter && bufferReport.radiusFeet && (
         <Circle
           center={bufferCenter}
-          radius={bufferReport.radiusFeet * 0.3048} // feet → meters
+          radius={bufferReport.radiusFeet * 0.3048}
           pathOptions={{ color: "#f97316", weight: 1 }}
         />
       )}
@@ -108,10 +158,553 @@ function MapWrapper(props) {
   );
 }
 
-// ----------------- Main App -----------------
-function App() {
-  // View mode
-  const [viewMode, setViewMode] = useState("map"); // "map" | "applications" | "reports"
+function InfoField({ label, value }) {
+  return (
+    <div>
+      <div
+        style={{
+          fontSize: 11,
+          color: "#9ca3af",
+          textTransform: "uppercase",
+          marginBottom: 2,
+        }}
+      >
+        {label}
+      </div>
+      <div style={{ fontSize: 12, color: "#111827" }}>{value}</div>
+    </div>
+  );
+}
+
+// Tile with side highlight on hover, uniform min-height
+function TileCard({
+  onClick,
+  title,
+  icon,
+  description,
+  footer,
+  muted,
+  interactive,
+  children,
+}) {
+  const [hovered, setHovered] = useState(false);
+
+  const baseStyle = {
+    textAlign: "left",
+    backgroundColor: "#ffffff",
+    borderRadius: 16,
+    padding: "12px 12px",
+    border: "1px solid #e5e7eb",
+    cursor: interactive ? "pointer" : "default",
+    outline: "none",
+    display: "flex",
+    flexDirection: "column",
+    justifyContent: "space-between",
+    width: "100%",
+    minHeight: 130, // same min height across tiles
+    transition:
+      "box-shadow 0.16s ease, transform 0.16s ease, border-left-color 0.16s ease",
+    borderLeft: hovered ? `3px solid ${BRAND_BLUE}` : "3px solid transparent",
+    opacity: muted ? 0.72 : 1,
+  };
+
+  if (interactive && hovered) {
+    baseStyle.boxShadow = "0 8px 24px rgba(15,23,42,0.09)";
+    baseStyle.transform = "translateY(-1px)";
+  }
+
+  const content = (
+    <div
+      style={baseStyle}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+    >
+      <div
+        style={{
+          fontSize: 13,
+          fontWeight: 600,
+          marginBottom: 4,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+        }}
+      >
+        <span>{title}</span>
+        <span style={{ fontSize: 16 }}>{icon}</span>
+      </div>
+
+      {children ? (
+        <div
+          style={{
+            fontSize: 12,
+            color: "#6b7280",
+            marginBottom: footer ? 6 : 0,
+          }}
+        >
+          {children}
+        </div>
+      ) : (
+        <div
+          style={{
+            fontSize: 12,
+            color: "#6b7280",
+            marginBottom: footer ? 6 : 0,
+          }}
+        >
+          {description}
+        </div>
+      )}
+
+      {footer && (
+        <div
+          style={{
+            fontSize: 11,
+            color: "#9ca3af",
+            fontStyle: "italic",
+          }}
+        >
+          {footer}
+        </div>
+      )}
+    </div>
+  );
+
+  if (interactive && onClick) {
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        style={{
+          padding: 0,
+          border: "none",
+          background: "transparent",
+          width: "100%",
+        }}
+      >
+        {content}
+      </button>
+    );
+  }
+
+  return content;
+}
+
+// Simple login modal
+function LoginModal({ onClose, onLogin }) {
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (!name.trim()) return;
+    onLogin({ name: name.trim(), email: email.trim() || null });
+  };
+
+  return (
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        backgroundColor: "rgba(15,23,42,0.35)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 50,
+      }}
+    >
+      <div
+        style={{
+          backgroundColor: "#ffffff",
+          borderRadius: 16,
+          padding: "18px 18px 16px",
+          width: "100%",
+          maxWidth: 360,
+          boxShadow: "0 20px 45px rgba(15,23,42,0.25)",
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginBottom: 10,
+          }}
+        >
+          <div style={{ fontSize: 15, fontWeight: 600 }}>Sign in to MyZ🌎NE</div>
+          <button
+            onClick={onClose}
+            style={{
+              border: "none",
+              background: "transparent",
+              cursor: "pointer",
+              fontSize: 16,
+              lineHeight: 1,
+            }}
+          >
+            ×
+          </button>
+        </div>
+
+        <p style={{ fontSize: 12, color: "#6b7280", marginBottom: 10 }}>
+          Save applications, feasibility runs, and parcel notes across sessions.
+        </p>
+
+        <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          <label style={{ fontSize: 12, color: "#374151" }}>
+            Name
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              required
+              style={{
+                marginTop: 4,
+                width: "100%",
+                padding: "6px 8px",
+                borderRadius: 8,
+                border: "1px solid #d1d5db",
+                fontSize: 13,
+              }}
+            />
+          </label>
+
+          <label style={{ fontSize: 12, color: "#374151" }}>
+            Email (optional)
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              style={{
+                marginTop: 4,
+                width: "100%",
+                padding: "6px 8px",
+                borderRadius: 8,
+                border: "1px solid #d1d5db",
+                fontSize: 13,
+              }}
+            />
+          </label>
+
+          <button
+            type="submit"
+            style={{
+              marginTop: 8,
+              border: "none",
+              borderRadius: 999,
+              padding: "8px 12px",
+              backgroundColor: BRAND_BLUE,
+              color: "#ffffff",
+              fontSize: 13,
+              fontWeight: 500,
+              cursor: "pointer",
+            }}
+          >
+            Continue
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// Smart code search modal (UI only, AI wiring later)
+function SmartCodeModal({ onClose }) {
+  const [question, setQuestion] = useState("");
+
+  return (
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        backgroundColor: "rgba(15,23,42,0.35)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 50,
+      }}
+    >
+      <div
+        style={{
+          backgroundColor: "#ffffff",
+          borderRadius: 18,
+          padding: "18px 18px 14px",
+          width: "100%",
+          maxWidth: 520,
+          maxHeight: "80vh",
+          display: "flex",
+          flexDirection: "column",
+          boxShadow: "0 24px 60px rgba(15,23,42,0.3)",
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginBottom: 8,
+          }}
+        >
+          <div style={{ fontSize: 15, fontWeight: 600 }}>Smart code search</div>
+          <button
+            onClick={onClose}
+            style={{
+              border: "none",
+              background: "transparent",
+              cursor: "pointer",
+              fontSize: 16,
+              lineHeight: 1,
+            }}
+          >
+            ×
+          </button>
+        </div>
+
+        <p style={{ fontSize: 12, color: "#6b7280", marginBottom: 10 }}>
+          Ask zoning, future land use, or entitlement questions. MyZ🌎NE will use your
+          jurisdiction’s zoning code plus general planning best practices.
+        </p>
+
+        <textarea
+          placeholder="Example: What are the minimum lot size and setbacks for RS zoning in Palm Springs, FL?"
+          value={question}
+          onChange={(e) => setQuestion(e.target.value)}
+          style={{
+            flexShrink: 0,
+            minHeight: 90,
+            maxHeight: 140,
+            resize: "vertical",
+            padding: "8px 10px",
+            borderRadius: 10,
+            border: "1px solid #d1d5db",
+            fontSize: 13,
+            fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
+            marginBottom: 8,
+          }}
+        />
+
+        <button
+          type="button"
+          disabled
+          style={{
+            alignSelf: "flex-start",
+            borderRadius: 999,
+            border: "none",
+            padding: "6px 12px",
+            fontSize: 12,
+            backgroundColor: "#e5e7eb",
+            color: "#6b7280",
+            cursor: "not-allowed",
+            marginBottom: 10,
+          }}
+        >
+          Live answers powered by OpenAI &amp; MyZ🌎NE (coming soon)
+        </button>
+
+        <div
+          style={{
+            flex: 1,
+            borderRadius: 10,
+            border: "1px dashed #e5e7eb",
+            padding: "10px 10px",
+            fontSize: 12,
+            color: "#6b7280",
+            backgroundColor: "#f9fafb",
+          }}
+        >
+          <div style={{ marginBottom: 4, fontWeight: 500, fontSize: 12 }}>
+            Preview response (static)
+          </div>
+          <p style={{ marginBottom: 6 }}>
+            Here you will see structured summaries of applicable zoning districts,
+            dimensional standards (lot size, setbacks, height), and any special
+            entitlements or conditional uses, based on the selected jurisdiction and
+            parcel.
+          </p>
+          <p>
+            You’ll also be able to attach these findings directly to a development
+            application or feasibility report in MyZ🌎NE.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Jurisdiction picker modal with tile-style options
+function JurisdictionModal({ selectedRegion, onSelect, onClose }) {
+  const [query, setQuery] = useState("");
+
+  const filtered = FL_REGIONS.filter((r) =>
+    r.label.toLowerCase().includes(query.toLowerCase()),
+  );
+
+  return (
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        backgroundColor: "rgba(15,23,42,0.35)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 50,
+      }}
+    >
+      <div
+        style={{
+          backgroundColor: "#ffffff",
+          borderRadius: 18,
+          padding: "18px 18px 16px",
+          width: "100%",
+          maxWidth: 720,
+          maxHeight: "80vh",
+          boxShadow: "0 24px 60px rgba(15,23,42,0.3)",
+          display: "flex",
+          flexDirection: "column",
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginBottom: 8,
+          }}
+        >
+          <div>
+            <div style={{ fontSize: 15, fontWeight: 600 }}>Select jurisdiction</div>
+            <div style={{ fontSize: 11, color: "#6b7280", marginTop: 2 }}>
+              Florida counties &amp; municipalities. More regions coming soon.
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            style={{
+              border: "none",
+              background: "transparent",
+              cursor: "pointer",
+              fontSize: 16,
+              lineHeight: 1,
+            }}
+          >
+            ×
+          </button>
+        </div>
+
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            marginBottom: 10,
+          }}
+        >
+          <input
+            type="text"
+            placeholder="Filter by County or Municipality name..."
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            style={{
+              flex: 1,
+              padding: "6px 10px",
+              borderRadius: 999,
+              border: "1px solid #e5e7eb",
+              fontSize: 13,
+              outline: "none",
+              backgroundColor: "#f9fafb",
+            }}
+          />
+          <span
+            style={{
+              fontSize: 11,
+              color: "#6b7280",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {filtered.length} shown
+          </span>
+        </div>
+
+        <div
+          style={{
+            flex: 1,
+            overflowY: "auto",
+            paddingTop: 4,
+          }}
+        >
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+              gap: 10,
+            }}
+          >
+            {filtered.map((region) => {
+              const isActive = region.value === selectedRegion;
+              return (
+                <button
+                  key={region.value}
+                  type="button"
+                  onClick={() => {
+                    onSelect(region.value);
+                    onClose();
+                  }}
+                  style={{
+                    borderRadius: 14,
+                    border: isActive
+                      ? `1px solid ${BRAND_LIGHT_BLUE}`
+                      : "1px solid #e5e7eb",
+                    padding: "8px 10px",
+                    backgroundColor: isActive ? "#eff6ff" : "#ffffff",
+                    textAlign: "left",
+                    cursor: "pointer",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 4,
+                  }}
+                >
+                  <span
+                    style={{
+                      fontSize: 13,
+                      fontWeight: 600,
+                      color: "#111827",
+                    }}
+                  >
+                    {region.label}
+                  </span>
+                  <span
+                    style={{
+                      fontSize: 11,
+                      color: "#6b7280",
+                    }}
+                  >
+                    {region.type}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ---------- MAIN APP ----------
+
+export default function App() {
+  // "home" = search-first landing, "map" = full map & details
+  const [viewMode, setViewMode] = useState("home");
+
+  // User session (simple, no backend yet)
+  const [user, setUser] = useState(null);
+  const [showLogin, setShowLogin] = useState(false);
+
+  // Smart code search modal
+  const [showSmartCodeModal, setShowSmartCodeModal] = useState(false);
+
+  // Jurisdiction modal
+  const [showJurisdictionModal, setShowJurisdictionModal] = useState(false);
 
   // Map state
   const [mapCenter, setMapCenter] = useState(DEFAULT_CENTER);
@@ -124,28 +717,31 @@ function App() {
   const [layersLoading, setLayersLoading] = useState(true);
   const [layersError, setLayersError] = useState(null);
 
-  // Parcel selection
+  // Selection + buffer
   const [selectedParcel, setSelectedParcel] = useState(null);
+  const [bufferReport, setBufferReport] = useState(null);
+  const [bufferRadiusFeet, setBufferRadiusFeet] = useState(300);
+  const [bufferLoading, setBufferLoading] = useState(false);
+  const [bufferError, setBufferError] = useState(null);
+
+  // Collapsible panels (good for mobile)
+  const [parcelPanelOpen, setParcelPanelOpen] = useState(true);
+  const [bufferPanelOpen, setBufferPanelOpen] = useState(true);
 
   // Search
   const [searchQuery, setSearchQuery] = useState("");
   const [searchLoading, setSearchLoading] = useState(false);
 
-  // Buffer / notice radius
-  const [isBufferOpen, setIsBufferOpen] = useState(true);
-  const [bufferRadiusFeet, setBufferRadiusFeet] = useState(300);
-  const [bufferReport, setBufferReport] = useState(null);
-  const [bufferLoading, setBufferLoading] = useState(false);
-  const [bufferError, setBufferError] = useState(null);
-
-  // Modals
-  const [isFeasibilityOpen, setIsFeasibilityOpen] = useState(false);
-  const [isReportOpen, setIsReportOpen] = useState(false);
-
   // Global banner
   const [banner, setBanner] = useState(null);
 
-  // ---------- Load base layers ----------
+  // Top-bar hamburger menu
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  // Florida jurisdiction selector (UI only for now)
+  const [selectedRegion, setSelectedRegion] = useState("Palm Beach County, FL");
+
+  // ---------- Load base layers on mount ----------
   useEffect(() => {
     async function loadLayers() {
       setLayersLoading(true);
@@ -166,32 +762,31 @@ function App() {
         setLayersLoading(false);
       }
     }
+
     loadLayers();
   }, []);
 
   // ---------- Handlers ----------
 
-  const handleParcelClick = async (lat, lng) => {
-    if (viewMode !== "map") return;
+  const handleMapClick = async (lat, lng) => {
     setBanner(null);
     setBufferError(null);
     setBufferReport(null);
 
     try {
       const parcel = await getParcelByLatLng(lat, lng);
-
+      setSelectedParcel(parcel);
       if (parcel && typeof parcel.lat === "number" && typeof parcel.lng === "number") {
         setMapCenter({ lat: parcel.lat, lng: parcel.lng });
       }
-      setSelectedParcel(parcel);
+      setViewMode("map");
     } catch (err) {
       console.error("Parcel click error:", err);
       setBanner(err.message || "Unable to identify a parcel at that location.");
     }
   };
 
-  const handleSearchSubmit = async (e) => {
-    e.preventDefault();
+  const performSearch = async () => {
     const trimmed = searchQuery.trim();
     if (!trimmed) return;
 
@@ -202,10 +797,12 @@ function App() {
 
     try {
       const parcel = await getParcelBySearch(trimmed, [mapCenter.lat, mapCenter.lng]);
+
       if (parcel && typeof parcel.lat === "number" && typeof parcel.lng === "number") {
         setMapCenter({ lat: parcel.lat, lng: parcel.lng });
       }
       setSelectedParcel(parcel);
+      setViewMode("map");
     } catch (err) {
       console.error("Search error:", err);
       setBanner(err.message || "Unable to find a parcel for that search.");
@@ -214,13 +811,18 @@ function App() {
     }
   };
 
+  const handleSearchSubmit = async (e) => {
+    e.preventDefault();
+    await performSearch();
+  };
+
   const handleGenerateBuffer = async () => {
     if (
       !selectedParcel ||
       typeof selectedParcel.lat !== "number" ||
       typeof selectedParcel.lng !== "number"
     ) {
-      setBufferError("Select a parcel first (click the map or search by ID).");
+      setBufferError("Select a parcel first (click the map or search by PCN).");
       return;
     }
 
@@ -236,14 +838,12 @@ function App() {
       );
       if (report.error) {
         setBufferError(report.error);
-        setBufferReport(null);
       } else {
         setBufferReport(report);
       }
     } catch (err) {
       console.error("Buffer error:", err);
       setBufferError("Unable to generate buffer / notice-radius report.");
-      setBufferReport(null);
     } finally {
       setBufferLoading(false);
     }
@@ -257,460 +857,434 @@ function App() {
     [bufferReport],
   );
 
-  // When you click a parcel row in the buffer table
-  const handleBufferParcelClick = (row) => {
-    // Recenter map to this parcel's centroid if present
-    if (row.centroid && typeof row.centroid.lat === "number" && typeof row.centroid.lng === "number") {
-      setMapCenter({ lat: row.centroid.lat, lng: row.centroid.lng });
-    }
+  // Dynamic jurisdiction for header (still grounded in Palm Beach dataset)
+  const headerJurisdiction = selectedParcel?.jurisdiction
+    ? `${selectedRegion} · ${selectedParcel.jurisdiction}`
+    : `${selectedRegion} (Beta – Palm Beach data)`;
 
-    // Update selected parcel with what we know from the buffer row.
-    // Keep existing zoning/flu if we already have them; otherwise default to "TBD".
-    setSelectedParcel((prev) => {
-      return {
-        id: row.id || prev?.id || "UNKNOWN",
-        address: row.address || prev?.address || "Parcel",
-        jurisdiction: row.jurisdiction || prev?.jurisdiction || "Unknown jurisdiction",
-        zoning: prev?.zoning || "TBD",
-        flu: prev?.flu || "TBD",
-        areaAcres:
-          typeof row.areaAcres === "number"
-            ? row.areaAcres
-            : prev?.areaAcres ?? null,
-        lat:
-          row.centroid && typeof row.centroid.lat === "number"
-            ? row.centroid.lat
-            : prev?.lat ?? DEFAULT_CENTER.lat,
-        lng:
-          row.centroid && typeof row.centroid.lng === "number"
-            ? row.centroid.lng
-            : prev?.lng ?? DEFAULT_CENTER.lng,
-        raw: prev?.raw || null,
-        geometry: prev?.geometry || null,
-      };
-    });
-  };
+  const userInitials = user?.name
+    ? user.name
+        .split(" ")
+        .map((p) => p[0])
+        .join("")
+        .slice(0, 2)
+        .toUpperCase()
+    : null;
 
-  const handleStartApplication = () => {
-    // Hook up to your Applications module later.
-    setBanner(
-      "Application flow is coming soon. This will create a project for the selected parcel.",
-    );
-  };
+  const closeMenu = () => setMenuOpen(false);
 
-  // ---------- Render helpers ----------
-
-  const renderRightPanelContent = () => {
-    if (!selectedParcel) {
-      return (
-        <div style={{ color: "#6b7280", fontSize: "13px" }}>
-          Click a parcel on the map or search by PARID to view details.
-        </div>
-      );
-    }
-
-    return (
-      <>
-        {/* Summary header */}
-        <div style={{ marginBottom: "10px" }}>
-          <div style={{ fontSize: "13px", fontWeight: 600 }}>
-            Parcel {selectedParcel.id}
-          </div>
-          <div style={{ fontSize: "12px", color: "#6b7280" }}>
-            {selectedParcel.jurisdiction}
-          </div>
-          <div
-            style={{
-              marginTop: "6px",
-              display: "flex",
-              gap: "6px",
-              flexWrap: "wrap",
-            }}
-          >
-            <span
-              style={{
-                fontSize: "11px",
-                padding: "3px 8px",
-                borderRadius: "999px",
-                backgroundColor: "#eef2ff",
-                color: "#4f46e5",
-              }}
-            >
-              Zoning: {selectedParcel.zoning || "TBD"}
-            </span>
-            <span
-              style={{
-                fontSize: "11px",
-                padding: "3px 8px",
-                borderRadius: "999px",
-                backgroundColor: "#ecfdf3",
-                color: "#15803d",
-              }}
-            >
-              FLU: {selectedParcel.flu || "TBD"}
-            </span>
-            {selectedParcel.areaAcres != null && (
-              <span
-                style={{
-                  fontSize: "11px",
-                  padding: "3px 8px",
-                  borderRadius: "999px",
-                  backgroundColor: "#f3f4f6",
-                  color: "#374151",
-                }}
-              >
-                {selectedParcel.areaAcres.toFixed(3)} ac
-              </span>
-            )}
-          </div>
-        </div>
-
-        {/* Basic info */}
-        <div style={{ marginBottom: "10px" }}>
-          <div
-            style={{
-              fontSize: "11px",
-              color: "#6b7280",
-              textTransform: "uppercase",
-            }}
-          >
-            Label
-          </div>
-          <div style={{ fontSize: "13px" }}>{selectedParcel.address}</div>
-        </div>
-
-        <div style={{ marginBottom: "10px" }}>
-          <div
-            style={{
-              fontSize: "11px",
-              color: "#6b7280",
-              textTransform: "uppercase",
-            }}
-          >
-            Parcel ID
-          </div>
-          <div style={{ fontSize: "13px" }}>{selectedParcel.id}</div>
-        </div>
-
-        <div style={{ marginBottom: "10px" }}>
-          <div
-            style={{
-              fontSize: "11px",
-              color: "#6b7280",
-              textTransform: "uppercase",
-            }}
-          >
-            Jurisdiction
-          </div>
-          <div style={{ fontSize: "13px" }}>{selectedParcel.jurisdiction}</div>
-        </div>
-
-        <div style={{ marginBottom: "10px" }}>
-          <div
-            style={{
-              fontSize: "11px",
-              color: "#6b7280",
-              textTransform: "uppercase",
-            }}
-          >
-            Zoning
-          </div>
-          <div style={{ fontSize: "13px" }}>{selectedParcel.zoning || "TBD"}</div>
-        </div>
-
-        <div style={{ marginBottom: "10px" }}>
-          <div
-            style={{
-              fontSize: "11px",
-              color: "#6b7280",
-              textTransform: "uppercase",
-            }}
-          >
-            Future Land Use (FLU)
-          </div>
-          <div style={{ fontSize: "13px" }}>{selectedParcel.flu || "TBD"}</div>
-        </div>
-
-        {/* Actions */}
-        <div
-          style={{
-            marginTop: "12px",
-            display: "flex",
-            flexDirection: "column",
-            gap: "6px",
-          }}
-        >
-          <button
-            onClick={() => setIsFeasibilityOpen(true)}
-            style={{
-              width: "100%",
-              padding: "8px 10px",
-              borderRadius: "999px",
-              border: "1px solid #e5e7eb",
-              backgroundColor: "#111827",
-              color: "#ffffff",
-              fontSize: "12px",
-              cursor: "pointer",
-            }}
-          >
-            Open Feasibility
-          </button>
-          <button
-            onClick={() => setIsReportOpen(true)}
-            style={{
-              width: "100%",
-              padding: "8px 10px",
-              borderRadius: "999px",
-              border: "1px solid #e5e7eb",
-              backgroundColor: "#ffffff",
-              color: "#111827",
-              fontSize: "12px",
-              cursor: "pointer",
-            }}
-          >
-            Generate Zoning Report
-          </button>
-          <button
-            onClick={handleStartApplication}
-            style={{
-              width: "100%",
-              padding: "8px 10px",
-              borderRadius: "999px",
-              border: "1px solid #e5e7eb",
-              backgroundColor: "#ffffff",
-              color: "#111827",
-              fontSize: "12px",
-              cursor: "pointer",
-            }}
-          >
-            Start Application (coming soon)
-          </button>
-        </div>
-      </>
-    );
-  };
-
-  const renderMainContent = () => {
-    if (viewMode === "map") {
-      return (
-        <div style={{ flex: 1, display: "flex", minHeight: 0 }}>
-          {/* Map area */}
-          <div style={{ flex: 2, borderRight: "1px solid #e5e5e5" }}>
-            {layersLoading ? (
-              <div
-                style={{
-                  height: "100%",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontSize: "14px",
-                  color: "#6b7280",
-                }}
-              >
-                Loading map layers…
-              </div>
-            ) : layersError ? (
-              <div
-                style={{
-                  height: "100%",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontSize: "14px",
-                  color: "#b91c1c",
-                }}
-              >
-                {layersError}
-              </div>
-            ) : (
-              <div style={{ width: "100%", height: "100%", position: "relative" }}>
-                <MapWrapper
-                  center={mapCenter}
-                  zoom={zoom}
-                  onParcelClick={handleParcelClick}
-                  boundaries={boundaries}
-                  parcels={parcelsGeoJSON}
-                  zoning={zoningGeoJSON}
-                  bufferReport={bufferReport}
-                />
-
-                {/* Small status chip top-left */}
-                <div
-                  style={{
-                    position: "absolute",
-                    top: 10,
-                    left: 10,
-                    padding: "4px 8px",
-                    borderRadius: "999px",
-                    fontSize: "11px",
-                    backgroundColor: "rgba(255,255,255,0.9)",
-                    border: "1px solid #e5e7eb",
-                    color: "#4b5563",
-                  }}
-                >
-                  Palm Beach County · Parcels · Zoning · Municipalities
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Right panel */}
-          <aside
-            style={{
-              flex: 1,
-              display: "flex",
-              flexDirection: "column",
-              backgroundColor: "#ffffff",
-            }}
-          >
-            <div
-              style={{
-                padding: "12px 16px",
-                borderBottom: "1px solid #f3f4f6",
-                fontWeight: 600,
-                fontSize: "14px",
-              }}
-            >
-              Selected Parcel
-            </div>
-            <div
-              style={{
-                padding: "12px 16px",
-                fontSize: "13px",
-                flex: 1,
-                overflowY: "auto",
-              }}
-            >
-              {renderRightPanelContent()}
-            </div>
-          </aside>
-        </div>
-      );
-    }
-
-    if (viewMode === "applications") {
-      return (
-        <div
-          style={{
-            flex: 1,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            color: "#6b7280",
-            fontSize: "14px",
-          }}
-        >
-          Applications workspace is coming soon. It will list all development
-          applications, their stages, and link them to selected parcels.
-        </div>
-      );
-    }
-
-    // reports
-    return (
+  const renderMainMenu = () =>
+    menuOpen && (
       <div
         style={{
-          flex: 1,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          color: "#6b7280",
-          fontSize: "14px",
+          position: "absolute",
+          top: "100%",
+          right: 16,
+          marginTop: 8,
+          backgroundColor: "#ffffff",
+          borderRadius: 12,
+          boxShadow: "0 12px 32px rgba(15,23,42,0.25)",
+          padding: "8px 10px",
+          width: 220,
+          zIndex: 40,
+          fontSize: 13,
         }}
       >
-        Reports workspace is coming soon. It will provide zoning, FLU, and
-        notice-radius reports for export.
+        <div style={{ marginBottom: 6 }}>
+          {user ? (
+            <div style={{ fontSize: 12, color: "#4b5563", marginBottom: 4 }}>
+              Signed in as <strong>{user.name}</strong>
+            </div>
+          ) : (
+            <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 4 }}>
+              You’re browsing as guest
+            </div>
+          )}
+        </div>
+
+        {!user ? (
+          <button
+            type="button"
+            onClick={() => {
+              closeMenu();
+              setShowLogin(true);
+            }}
+            style={{
+              width: "100%",
+              textAlign: "left",
+              border: "none",
+              background: "transparent",
+              padding: "6px 4px",
+              cursor: "pointer",
+              fontSize: 13,
+              color: BRAND_BLUE,
+            }}
+          >
+            • Sign in
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={() => {
+              setUser(null);
+              closeMenu();
+            }}
+            style={{
+              width: "100%",
+              textAlign: "left",
+              border: "none",
+              background: "transparent",
+              padding: "6px 4px",
+              cursor: "pointer",
+              fontSize: 13,
+              color: "#b91c1c",
+            }}
+          >
+            • Sign out
+          </button>
+        )}
+
+        <div
+          style={{
+            borderTop: "1px solid #f3f4f6",
+            margin: "6px 0",
+          }}
+        />
+
+        <button
+          type="button"
+          onClick={() => {
+            setViewMode("map");
+            closeMenu();
+          }}
+          style={{
+            width: "100%",
+            textAlign: "left",
+            border: "none",
+            background: "transparent",
+            padding: "6px 4px",
+            cursor: "pointer",
+            fontSize: 13,
+            color: "#111827",
+          }}
+        >
+          • Map &amp; parcel explorer
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            // Feasibility analysis placeholder
+            closeMenu();
+          }}
+          style={{
+            width: "100%",
+            textAlign: "left",
+            border: "none",
+            background: "transparent",
+            padding: "6px 4px",
+            cursor: "pointer",
+            fontSize: 13,
+            color: "#6b7280",
+          }}
+        >
+          • Feasibility analysis (coming soon)
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            // Land use & zoning comparison placeholder
+            closeMenu();
+          }}
+          style={{
+            width: "100%",
+            textAlign: "left",
+            border: "none",
+            background: "transparent",
+            padding: "6px 4px",
+            cursor: "pointer",
+            fontSize: 13,
+            color: "#6b7280",
+          }}
+        >
+          • Land use &amp; zoning comparison (coming soon)
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            setShowSmartCodeModal(true);
+            closeMenu();
+          }}
+          style={{
+            width: "100%",
+            textAlign: "left",
+            border: "none",
+            background: "transparent",
+            padding: "6px 4px",
+            cursor: "pointer",
+            fontSize: 13,
+            color: "#6b7280",
+          }}
+        >
+          • Smart code search
+        </button>
       </div>
     );
-  };
 
-  // ----------------- Render -----------------
-  return (
+  // ---------- Views ----------
+
+  const renderHome = () => (
     <div
       style={{
-        fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
+        minHeight: "100vh",
         backgroundColor: "#f5f5f7",
-        color: "#111",
-        height: "100vh",
         display: "flex",
         flexDirection: "column",
       }}
     >
-      {/* Top bar */}
+      {/* Header */}
       <header
         style={{
-          padding: "8px 16px",
-          borderBottom: "1px solid #e5e5e5",
-          backgroundColor: "#ffffff",
+          padding: "10px 16px",
           display: "flex",
           alignItems: "center",
-          gap: "16px",
+          justifyContent: "space-between",
+          backgroundColor: "#ffffff",
+          borderBottom: "1px solid #e5e7eb",
+          gap: 12,
+          position: "relative",
         }}
       >
-        <div style={{ display: "flex", flexDirection: "column" }}>
-          <span style={{ fontWeight: 600, fontSize: "17px" }}>MyZone</span>
-          <span style={{ fontSize: "11px", color: "#6b7280" }}>
-            Palm Beach County · Parcel & Zoning Explorer
-          </span>
-        </div>
-
-        {/* Global search */}
-        <form
-          onSubmit={handleSearchSubmit}
-          style={{
-            flex: 1,
-            maxWidth: 480,
-            marginLeft: "32px",
-            display: "flex",
-            alignItems: "center",
-            gap: "8px",
-          }}
-        >
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
           <div
             style={{
-              flex: 1,
               display: "flex",
-              alignItems: "center",
-              padding: "6px 10px",
-              borderRadius: "999px",
-              border: "1px solid #d1d5db",
-              backgroundColor: "#f9fafb",
+              alignItems: "baseline",
+              gap: 1,
+              letterSpacing: "-0.01em",
             }}
           >
             <span
               style={{
-                fontSize: "13px",
-                color: "#9ca3af",
-                marginRight: "6px",
+                fontWeight: 700,
+                fontSize: 18,
+                color: BRAND_LIGHT_BLUE,
               }}
             >
-              🔍
+              My
             </span>
-            <input
-              type="text"
-              placeholder="Search by PARID (e.g. 70434418010000090)"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+            <span
               style={{
-                flex: 1,
-                border: "none",
-                outline: "none",
-                background: "transparent",
-                fontSize: "13px",
-                color: "#111827",
+                fontWeight: 700,
+                fontSize: 18,
+                fontStyle: "italic",
+                color: BRAND_LIGHT_BLUE,
               }}
-            />
+            >
+              Z
+            </span>
+            <span
+              style={{
+                fontSize: 18,
+                transform: "translateY(1px)",
+              }}
+            >
+              🌎
+            </span>
+            <span
+              style={{
+                fontWeight: 700,
+                fontSize: 18,
+                fontStyle: "italic",
+                color: BRAND_LIGHT_BLUE,
+              }}
+            >
+              NE
+            </span>
           </div>
+        </div>
+
+        <div
+          style={{
+            fontSize: 11,
+            color: "#6b7280",
+            flex: 1,
+            textAlign: "center",
+          }}
+        >
+          {headerJurisdiction}
+        </div>
+
+        {/* Right section: user chip + hamburger menu */}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+          }}
+        >
+          {user && (
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 4,
+                fontSize: 11,
+                color: "#4b5563",
+              }}
+            >
+              <div
+                style={{
+                  width: 22,
+                  height: 22,
+                  borderRadius: "999px",
+                  backgroundColor: BRAND_BLUE,
+                  color: "#f9fafb",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: 10,
+                  fontWeight: 600,
+                }}
+              >
+                {userInitials}
+              </div>
+            </div>
+          )}
+
+          <button
+            type="button"
+            onClick={() => setMenuOpen((v) => !v)}
+            style={{
+              borderRadius: 999,
+              border: "1px solid #e5e7eb",
+              padding: "4px 7px",
+              backgroundColor: "#f9fafb",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <span
+              style={{
+                fontSize: 16,
+                lineHeight: 1,
+                color: "#4b5563",
+              }}
+            >
+              ☰
+            </span>
+          </button>
+
+          {renderMainMenu()}
+        </div>
+      </header>
+
+      {banner && (
+        <div
+          style={{
+            padding: "8px 16px",
+            backgroundColor: "#fee2e2",
+            color: "#991b1b",
+            fontSize: 13,
+            borderBottom: "1px solid #fecaca",
+          }}
+        >
+          {banner}
+        </div>
+      )}
+
+      {/* Main content - slightly above center */}
+      <main
+        style={{
+          flex: 1,
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "flex-start",
+          padding: "24px 16px 32px",
+          paddingTop: "14vh",
+        }}
+      >
+        <div
+          style={{
+            maxWidth: 720,
+            width: "100%",
+            textAlign: "center",
+            marginBottom: 22,
+          }}
+        >
+          <h1
+            style={{
+              fontSize: 24,
+              fontWeight: 500,
+              marginBottom: 6,
+              color: "#111827",
+              letterSpacing: "-0.01em",
+            }}
+          >
+            Smart Land Use Development Planning and Management
+          </h1>
+          <p style={{ fontSize: 13, color: "#6b7280" }}>
+            Start with a parcel control number (PCN). Address, owner, and AI-assisted code
+            search are being rolled out jurisdiction by jurisdiction.
+          </p>
+        </div>
+
+        {/* Big primary search bar */}
+        <form
+          onSubmit={handleSearchSubmit}
+          style={{
+            width: "100%",
+            maxWidth: 720,
+            backgroundColor: "#ffffff",
+            borderRadius: 999,
+            border: "1px solid #e5e7eb",
+            padding: "8px 10px",
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            boxShadow: "0 10px 30px rgba(15,23,42,0.08)",
+            marginBottom: 20,
+          }}
+        >
+          <span
+            style={{
+              fontSize: 14,
+              color: "#9ca3af",
+              paddingLeft: 8,
+            }}
+          >
+            🔍
+          </span>
+          <input
+            type="text"
+            placeholder="Search by Parcel Control Number (e.g. 70434418010000090)"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            style={{
+              flex: 1,
+              border: "none",
+              outline: "none",
+              fontSize: 14,
+              padding: "6px 4px",
+              background: "transparent",
+            }}
+          />
           <button
             type="submit"
             disabled={searchLoading}
             style={{
-              padding: "6px 12px",
-              borderRadius: "999px",
+              borderRadius: 999,
               border: "none",
-              backgroundColor: "#111827",
+              padding: "8px 16px",
+              fontSize: 13,
+              fontWeight: 500,
+              backgroundColor: BRAND_BLUE,
               color: "#ffffff",
-              fontSize: "12px",
               cursor: "pointer",
               whiteSpace: "nowrap",
             }}
@@ -719,64 +1293,239 @@ function App() {
           </button>
         </form>
 
-        {/* View toggles */}
+        {/* Tiles - uniform size, compact, single row on desktop */}
         <div
           style={{
-            display: "flex",
-            borderRadius: "999px",
-            border: "1px solid #e5e7eb",
-            overflow: "hidden",
-            fontSize: "12px",
+            width: "100%",
+            maxWidth: 960,
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))",
+            gap: 12,
           }}
         >
-          {["map", "applications", "reports"].map((mode) => (
-            <button
-              key={mode}
-              onClick={() => setViewMode(mode)}
-              style={{
-                padding: "5px 10px",
-                border: "none",
-                cursor: "pointer",
-                backgroundColor: viewMode === mode ? "#111827" : "transparent",
-                color: viewMode === mode ? "#ffffff" : "#4b5563",
-              }}
-            >
-              {mode === "map"
-                ? "Map"
-                : mode === "applications"
-                ? "Applications"
-                : "Reports"}
-            </button>
-          ))}
+          {/* Map tile (interactive) */}
+          <TileCard
+            interactive
+            onClick={() => setViewMode("map")}
+            title="Map & parcel explorer"
+            icon="🗺️"
+            description="Click a parcel to see zoning, FLU, jurisdiction, and buffers."
+          />
+
+          {/* Smart code search tile */}
+          <TileCard
+            interactive
+            onClick={() => setShowSmartCodeModal(true)}
+            title="Smart code search"
+            icon="🤖"
+            description="Ask about zoning standards and entitlements using AI."
+            footer="Powered by MyZ🌎NE + OpenAI (coming soon)."
+          />
+
+          {/* Jurisdiction selector tile (click opens floating modal) */}
+          <TileCard
+            title="Jurisdiction context"
+            icon="🏛️"
+            interactive
+            onClick={() => setShowJurisdictionModal(true)}
+            description=""
+          >
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <span style={{ fontSize: 12, color: "#6b7280" }}>Currently viewing</span>
+              <span
+                style={{
+                  fontSize: 13,
+                  fontWeight: 500,
+                  color: "#111827",
+                  whiteSpace: "nowrap",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                }}
+              >
+                {selectedRegion}
+              </span>
+              <span
+                style={{
+                  fontSize: 11,
+                  color: "#3b82f6",
+                }}
+              >
+                Tap to choose Florida County / Municipality
+              </span>
+            </div>
+          </TileCard>
+
+          {/* Applications tile (coming soon) */}
+          <TileCard
+            muted
+            title="Applications workspace"
+            icon="📂"
+            description="Track rezonings, site plans, and special exceptions."
+            footer="Coming soon."
+          />
+
+          {/* Noticing / mail merge tile (coming soon) */}
+          <TileCard
+            muted
+            title="Noticing & mail merge"
+            icon="✉️"
+            description="Generate neighbor lists and export labels from buffers."
+            footer="Coming soon."
+          />
         </div>
 
-        {/* Profile placeholder */}
         <div
           style={{
-            width: 30,
-            height: 30,
-            borderRadius: "999px",
-            backgroundColor: "#111827",
-            color: "#ffffff",
+            marginTop: 24,
+            fontSize: 11,
+            color: "#9ca3af",
+            textAlign: "center",
+          }}
+        >
+          Data sources: Palm Beach County GIS · This is a planning support tool, not an
+          official zoning verification.
+        </div>
+      </main>
+    </div>
+  );
+
+  const renderMapView = () => (
+    <div
+      style={{
+        minHeight: "100vh",
+        backgroundColor: "#f5f5f7",
+        display: "flex",
+        flexDirection: "column",
+      }}
+    >
+      {/* Top bar for map view */}
+      <header
+        style={{
+          padding: "10px 16px",
+          borderBottom: "1px solid #e5e7eb",
+          backgroundColor: "#ffffff",
+          display: "flex",
+          alignItems: "center",
+          gap: 12,
+          position: "relative",
+        }}
+      >
+        <button
+          onClick={() => setViewMode("home")}
+          style={{
+            borderRadius: 999,
+            border: "1px solid #e5e7eb",
+            padding: "6px 10px",
+            fontSize: 12,
+            backgroundColor: "#f9fafb",
+            cursor: "pointer",
+            color: BRAND_BLUE,
+          }}
+        >
+          ← Back to search
+        </button>
+
+        <div style={{ fontWeight: 600, fontSize: 14, color: BRAND_BLUE }}>
+          Map &amp; parcel explorer
+        </div>
+
+        {/* Jurisdiction indicator */}
+        <div
+          style={{
+            fontSize: 11,
+            color: "#6b7280",
+            marginLeft: 12,
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+          }}
+        >
+          {headerJurisdiction}
+        </div>
+
+        {/* Compact search in header */}
+        <form
+          onSubmit={handleSearchSubmit}
+          style={{
+            marginLeft: "auto",
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+            backgroundColor: "#f9fafb",
+            borderRadius: 999,
+            border: "1px solid #e5e7eb",
+            padding: "4px 8px",
+            maxWidth: 280,
+            flex: 1,
+          }}
+        >
+          <input
+            type="text"
+            placeholder="PCN search"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            style={{
+              flex: 1,
+              border: "none",
+              outline: "none",
+              background: "transparent",
+              fontSize: 12,
+            }}
+          />
+          <button
+            type="submit"
+            disabled={searchLoading}
+            style={{
+              borderRadius: 999,
+              border: "none",
+              padding: "4px 10px",
+              fontSize: 12,
+              backgroundColor: BRAND_BLUE,
+              color: "#ffffff",
+              cursor: "pointer",
+            }}
+          >
+            {searchLoading ? "…" : "Go"}
+          </button>
+        </form>
+
+        {/* Hamburger menu in map view too */}
+        <button
+          type="button"
+          onClick={() => setMenuOpen((v) => !v)}
+          style={{
+            marginLeft: 8,
+            borderRadius: 999,
+            border: "1px solid #e5e7eb",
+            padding: "4px 7px",
+            backgroundColor: "#f9fafb",
+            cursor: "pointer",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            fontSize: "13px",
-            marginLeft: "8px",
           }}
         >
-          JL
-        </div>
+          <span
+            style={{
+              fontSize: 16,
+              lineHeight: 1,
+              color: "#4b5563",
+            }}
+          >
+            ☰
+          </span>
+        </button>
+
+        {renderMainMenu()}
       </header>
 
-      {/* Banner */}
       {banner && (
         <div
           style={{
             padding: "8px 16px",
             backgroundColor: "#fee2e2",
             color: "#991b1b",
-            fontSize: "13px",
+            fontSize: 13,
             borderBottom: "1px solid #fecaca",
           }}
         >
@@ -784,435 +1533,348 @@ function App() {
         </div>
       )}
 
-      {/* Main row: left rail + content */}
+      {/* Map + bottom info panel (mobile friendly) */}
       <div
         style={{
           flex: 1,
           display: "flex",
+          flexDirection: "column",
           minHeight: 0,
         }}
       >
-        {/* Left rail */}
-        <nav
+        {/* Map area */}
+        <div style={{ flex: 1, minHeight: "50vh" }}>
+          {layersLoading ? (
+            <div
+              style={{
+                height: "100%",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: 14,
+                color: "#6b7280",
+              }}
+            >
+              Loading map layers…
+            </div>
+          ) : layersError ? (
+            <div
+              style={{
+                height: "100%",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: 14,
+                color: "#b91c1c",
+              }}
+            >
+              {layersError}
+            </div>
+          ) : (
+            <MapWrapper
+              center={mapCenter}
+              zoom={zoom}
+              onMapClick={handleMapClick}
+              boundaries={boundaries}
+              parcels={parcelsGeoJSON}
+              zoning={zoningGeoJSON}
+              selectedParcel={selectedParcel}
+              bufferReport={bufferReport}
+            />
+          )}
+        </div>
+
+        {/* Bottom info / buffer panel */}
+        <aside
           style={{
-            width: 72,
-            backgroundColor: "#f9fafb",
-            borderRight: "1px solid #e5e7eb",
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            paddingTop: 12,
-            gap: 12,
-          }}
-        >
-          {/* Home / dashboard */}
-          <button
-            style={{
-              width: 32,
-              height: 32,
-              borderRadius: "999px",
-              border: "none",
-              backgroundColor: "#ffffff",
-              boxShadow: "0 0 0 1px #e5e7eb",
-              fontSize: "14px",
-              cursor: "pointer",
-            }}
-            title="Dashboard"
-          >
-            ⌂
-          </button>
-
-          {/* Layers (placeholder) */}
-          <button
-            style={{
-              width: 32,
-              height: 32,
-              borderRadius: "999px",
-              border: "none",
-              backgroundColor: "#ffffff",
-              boxShadow: "0 0 0 1px #e5e7eb",
-              fontSize: "16px",
-              cursor: "pointer",
-            }}
-            title="Layers (coming soon)"
-          >
-            🗺
-          </button>
-
-          {/* Buffer tool toggle */}
-          <button
-            onClick={() => setIsBufferOpen((prev) => !prev)}
-            style={{
-              width: 32,
-              height: 32,
-              borderRadius: "999px",
-              border: "none",
-              backgroundColor: isBufferOpen ? "#111827" : "#ffffff",
-              color: isBufferOpen ? "#ffffff" : "#111827",
-              boxShadow: "0 0 0 1px #e5e7eb",
-              fontSize: "15px",
-              cursor: "pointer",
-            }}
-            title="Notice radius / buffer"
-          >
-            ◯
-          </button>
-
-          {/* Applications shortcut */}
-          <button
-            onClick={() => setViewMode("applications")}
-            style={{
-              width: 32,
-              height: 32,
-              borderRadius: "999px",
-              border: "none",
-              backgroundColor:
-                viewMode === "applications" ? "#111827" : "#ffffff",
-              color: viewMode === "applications" ? "#ffffff" : "#111827",
-              boxShadow: "0 0 0 1px #e5e7eb",
-              fontSize: "15px",
-              cursor: "pointer",
-            }}
-            title="Applications"
-          >
-            📄
-          </button>
-
-          {/* Reports shortcut */}
-          <button
-            onClick={() => setViewMode("reports")}
-            style={{
-              width: 32,
-              height: 32,
-              borderRadius: "999px",
-              border: "none",
-              backgroundColor: viewMode === "reports" ? "#111827" : "#ffffff",
-              color: viewMode === "reports" ? "#ffffff" : "#111827",
-              boxShadow: "0 0 0 1px #e5e7eb",
-              fontSize: "15px",
-              cursor: "pointer",
-            }}
-            title="Reports"
-          >
-            📊
-          </button>
-        </nav>
-
-        {/* Main content */}
-        {renderMainContent()}
-      </div>
-
-      {/* Bottom drawer: buffer / notice radius (only in map view) */}
-      {viewMode === "map" && (
-        <div
-          style={{
-            borderTop: "1px solid #e5e7eb",
             backgroundColor: "#ffffff",
-            transition: "height 0.2s ease",
-            height: isBufferOpen ? 260 : 40,
-            overflow: "hidden",
+            borderTop: "1px solid #e5e7eb",
+            padding: "12px 16px 16px",
           }}
         >
-          {/* Drawer header */}
           <div
             style={{
-              display: "flex",
-              alignItems: "center",
-              padding: "6px 16px",
-              fontSize: "13px",
+              display: "grid",
+              gridTemplateColumns: "minmax(0, 2fr) minmax(0, 1.4fr)",
+              gap: 16,
             }}
           >
-            <div style={{ flex: 1 }}>
-              <span style={{ fontWeight: 500 }}>Notice Radius / Buffer Tool</span>
-              <span
+            {/* Selected parcel block (collapsible) */}
+            <div style={{ fontSize: 13 }}>
+              <button
+                type="button"
+                onClick={() => setParcelPanelOpen((v) => !v)}
                 style={{
-                  marginLeft: 8,
-                  color: "#6b7280",
-                  fontSize: "12px",
-                }}
-              >
-                Select a parcel and choose a radius to find affected parcels.
-              </span>
-            </div>
-            <div
-              style={{
-                fontSize: "12px",
-                color: "#4b5563",
-                marginRight: 16,
-                whiteSpace: "nowrap",
-              }}
-            >
-              Parcels: {bufferCount} in {bufferRadiusFeet} ft
-            </div>
-            <button
-              onClick={() => setIsBufferOpen((prev) => !prev)}
-              style={{
-                border: "none",
-                background: "transparent",
-                cursor: "pointer",
-                fontSize: "16px",
-              }}
-            >
-              {isBufferOpen ? "▾" : "▴"}
-            </button>
-          </div>
-
-          {/* Drawer body */}
-          {isBufferOpen && (
-            <div
-              style={{
-                padding: "8px 16px 10px",
-                display: "flex",
-                flexDirection: "column",
-                gap: 8,
-                fontSize: "13px",
-                borderTop: "1px solid #f3f4f6",
-                height: "100%",
-              }}
-            >
-              {/* Controls row */}
-              <div
-                style={{
+                  width: "100%",
                   display: "flex",
                   alignItems: "center",
-                  gap: 12,
-                  flexWrap: "wrap",
+                  justifyContent: "space-between",
+                  border: "none",
+                  background: "transparent",
+                  padding: 0,
+                  marginBottom: parcelPanelOpen ? 8 : 4,
+                  cursor: "pointer",
                 }}
               >
-                <label style={{ fontSize: "12px", color: "#4b5563" }}>
-                  Radius (feet):
-                  <input
-                    type="number"
-                    value={bufferRadiusFeet}
-                    onChange={(e) =>
-                      setBufferRadiusFeet(Number(e.target.value) || 0)
-                    }
-                    min={50}
-                    max={5280}
-                    style={{
-                      marginLeft: 6,
-                      width: 90,
-                      padding: "4px 6px",
-                      fontSize: "12px",
-                      borderRadius: 4,
-                      border: "1px solid #d1d5db",
-                    }}
-                  />
-                </label>
+                <span
+                  style={{
+                    fontWeight: 600,
+                    fontSize: 13,
+                  }}
+                >
+                  Selected parcel
+                </span>
+                <span
+                  style={{
+                    fontSize: 12,
+                    color: "#9ca3af",
+                    transform: parcelPanelOpen ? "rotate(90deg)" : "rotate(0deg)",
+                    transition: "transform 0.15s ease",
+                  }}
+                >
+                  ❯
+                </span>
+              </button>
 
-                <div style={{ display: "flex", gap: 6 }}>
-                  {[150, 300, 500, 1000].map((val) => (
-                    <button
-                      key={val}
-                      onClick={() => setBufferRadiusFeet(val)}
+              {parcelPanelOpen && (
+                <>
+                  {selectedParcel ? (
+                    <div
                       style={{
-                        padding: "3px 8px",
-                        borderRadius: "999px",
-                        border: "1px solid #e5e7eb",
-                        backgroundColor:
-                          bufferRadiusFeet === val ? "#111827" : "#ffffff",
-                        color:
-                          bufferRadiusFeet === val ? "#ffffff" : "#4b5563",
-                        fontSize: "11px",
+                        display: "grid",
+                        gridTemplateColumns:
+                          "repeat(auto-fit, minmax(130px, 1fr))",
+                        gap: 8,
+                      }}
+                    >
+                      <InfoField label="Label" value={selectedParcel.address} />
+                      <InfoField label="Parcel ID" value={selectedParcel.id} />
+                      <InfoField label="Owner" value={selectedParcel.owner || "—"} />
+                      <InfoField
+                        label="Jurisdiction"
+                        value={selectedParcel.jurisdiction}
+                      />
+                      <InfoField label="Zoning" value={selectedParcel.zoning} />
+                      <InfoField
+                        label="Future Land Use"
+                        value={selectedParcel.flu || "TBD"}
+                      />
+                      <InfoField
+                        label="Area (acres)"
+                        value={
+                          selectedParcel.areaAcres != null
+                            ? selectedParcel.areaAcres.toFixed(3)
+                            : "—"
+                        }
+                      />
+                    </div>
+                  ) : (
+                    <div style={{ color: "#9ca3af", fontSize: 12 }}>
+                      Click a parcel on the map or search by PCN to view zoning details.
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+
+            {/* Buffer block (collapsible) */}
+            <div
+              style={{
+                fontSize: 13,
+                borderLeft: "1px solid #f3f4f6",
+                paddingLeft: 16,
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => setBufferPanelOpen((v) => !v)}
+                style={{
+                  width: "100%",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  border: "none",
+                  background: "transparent",
+                  padding: 0,
+                  marginBottom: bufferPanelOpen ? 8 : 4,
+                  cursor: "pointer",
+                }}
+              >
+                <span
+                  style={{
+                    fontWeight: 600,
+                    fontSize: 13,
+                  }}
+                >
+                  Notice radius / buffer
+                </span>
+                <span
+                  style={{
+                    fontSize: 12,
+                    color: "#9ca3af",
+                    transform: bufferPanelOpen ? "rotate(90deg)" : "rotate(0deg)",
+                    transition: "transform 0.15s ease",
+                  }}
+                >
+                  ❯
+                </span>
+              </button>
+
+              {bufferPanelOpen && (
+                <>
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 8,
+                      marginBottom: 8,
+                      flexWrap: "wrap",
+                    }}
+                  >
+                    <label
+                      style={{
+                        fontSize: 12,
+                        color: "#4b5563",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 4,
+                      }}
+                    >
+                      Radius (feet)
+                      <input
+                        type="number"
+                        value={bufferRadiusFeet}
+                        onChange={(e) =>
+                          setBufferRadiusFeet(Number(e.target.value) || 0)
+                        }
+                        min={50}
+                        max={5280}
+                        style={{
+                          width: 90,
+                          padding: "4px 6px",
+                          fontSize: 12,
+                          borderRadius: 6,
+                          border: "1px solid #d1d5db",
+                        }}
+                      />
+                    </label>
+                    <button
+                      onClick={handleGenerateBuffer}
+                      disabled={bufferLoading}
+                      style={{
+                        padding: "6px 12px",
+                        borderRadius: 999,
+                        border: "none",
+                        fontSize: 12,
+                        backgroundColor: BRAND_BLUE,
+                        color: "#ffffff",
                         cursor: "pointer",
                       }}
                     >
-                      {val} ft
+                      {bufferLoading ? "Generating…" : "Generate"}
                     </button>
-                  ))}
-                </div>
-
-                <button
-                  onClick={handleGenerateBuffer}
-                  disabled={bufferLoading}
-                  style={{
-                    padding: "6px 10px",
-                    borderRadius: "999px",
-                    border: "none",
-                    backgroundColor: "#111827",
-                    color: "#ffffff",
-                    fontSize: "12px",
-                    cursor: "pointer",
-                  }}
-                >
-                  {bufferLoading ? "Generating…" : "Generate buffer"}
-                </button>
-
-                <button
-                  disabled={!bufferReport || bufferCount === 0}
-                  style={{
-                    padding: "6px 10px",
-                    borderRadius: "999px",
-                    border: "1px solid #e5e7eb",
-                    backgroundColor: "#ffffff",
-                    color:
-                      bufferReport && bufferCount > 0 ? "#111827" : "#9ca3af",
-                    fontSize: "12px",
-                    cursor:
-                      bufferReport && bufferCount > 0 ? "pointer" : "default",
-                  }}
-                  title="Export buffer parcels as CSV (coming soon)"
-                >
-                  Export CSV (coming soon)
-                </button>
-              </div>
-
-              {/* Error / info */}
-              {bufferError && (
-                <div style={{ color: "#b91c1c", fontSize: "12px" }}>
-                  {bufferError}
-                </div>
-              )}
-
-              {bufferReport && !bufferError && (
-                <div style={{ fontSize: "12px", color: "#374151" }}>
-                  <div>
-                    <strong>Center:</strong>{" "}
-                    {bufferReport.center
-                      ? `${bufferReport.center.lat.toFixed(
-                          5,
-                        )}, ${bufferReport.center.lng.toFixed(5)}`
-                      : "—"}
                   </div>
-                  <div>
-                    <strong>Radius:</strong> {bufferReport.radiusFeet} ft
-                  </div>
-                  <div>
-                    <strong>Parcels in buffer:</strong> {bufferCount}
-                  </div>
-                </div>
-              )}
 
-              {/* Buffer table */}
-              {bufferReport &&
-                !bufferError &&
-                Array.isArray(bufferReport.parcels) &&
-                bufferReport.parcels.length > 0 && (
-                  <div
-                    style={{
-                      marginTop: 4,
-                      flex: 1,
-                      overflowY: "auto",
-                      borderRadius: 6,
-                      border: "1px solid #e5e7eb",
-                    }}
-                  >
-                    <table
+                  {bufferError && (
+                    <div
                       style={{
-                        width: "100%",
-                        borderCollapse: "collapse",
-                        fontSize: "12px",
+                        color: "#b91c1c",
+                        fontSize: 12,
+                        marginBottom: 4,
                       }}
                     >
-                      <thead
+                      {bufferError}
+                    </div>
+                  )}
+
+                  {bufferReport && !bufferError && (
+                    <div style={{ fontSize: 12, color: "#374151", marginBottom: 6 }}>
+                      <div>
+                        <strong>Center:</strong>{" "}
+                        {bufferReport.center
+                          ? `${bufferReport.center.lat.toFixed(
+                              5,
+                            )}, ${bufferReport.center.lng.toFixed(5)}`
+                          : "—"}
+                      </div>
+                      <div>
+                        <strong>Radius:</strong> {bufferReport.radiusFeet} ft
+                      </div>
+                      <div>
+                        <strong>Parcels in buffer:</strong> {bufferCount}
+                      </div>
+                    </div>
+                  )}
+
+                  {bufferReport &&
+                    Array.isArray(bufferReport.parcels) &&
+                    bufferReport.parcels.length > 0 && (
+                      <div
                         style={{
-                          backgroundColor: "#f9fafb",
-                          position: "sticky",
-                          top: 0,
-                          zIndex: 1,
+                          marginTop: 6,
+                          maxHeight: 140,
+                          overflowY: "auto",
+                          borderTop: "1px solid #f3f4f6",
+                          paddingTop: 6,
                         }}
                       >
-                        <tr>
-                          <th
+                        <div
+                          style={{
+                            fontSize: 11,
+                            textTransform: "uppercase",
+                            color: "#9ca3af",
+                            marginBottom: 4,
+                          }}
+                        >
+                          Parcels ({bufferReport.parcels.length})
+                        </div>
+                        {bufferReport.parcels.map((p) => (
+                          <div
+                            key={p.id}
                             style={{
-                              textAlign: "left",
-                              padding: "6px 8px",
-                              borderBottom: "1px solid #e5e7eb",
-                              fontWeight: 500,
-                              color: "#4b5563",
+                              fontSize: 12,
+                              padding: "4px 0",
+                              borderBottom: "1px dashed #f3f4f6",
                             }}
                           >
-                            Parcel ID
-                          </th>
-                          <th
-                            style={{
-                              textAlign: "left",
-                              padding: "6px 8px",
-                              borderBottom: "1px solid #e5e7eb",
-                              fontWeight: 500,
-                              color: "#4b5563",
-                            }}
-                          >
-                            Jurisdiction
-                          </th>
-                          <th
-                            style={{
-                              textAlign: "right",
-                              padding: "6px 8px",
-                              borderBottom: "1px solid #e5e7eb",
-                              fontWeight: 500,
-                              color: "#4b5563",
-                            }}
-                          >
-                            Acres
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {bufferReport.parcels.map((row) => (
-                          <tr
-                            key={row.id}
-                            onClick={() => handleBufferParcelClick(row)}
-                            style={{
-                              cursor: "pointer",
-                              backgroundColor: "#ffffff",
-                            }}
-                          >
-                            <td
-                              style={{
-                                padding: "5px 8px",
-                                borderBottom: "1px solid #f3f4f6",
-                                color: "#111827",
-                              }}
-                            >
-                              {row.id}
-                            </td>
-                            <td
-                              style={{
-                                padding: "5px 8px",
-                                borderBottom: "1px solid #f3f4f6",
-                                color: "#4b5563",
-                              }}
-                            >
-                              {row.jurisdiction}
-                            </td>
-                            <td
-                              style={{
-                                padding: "5px 8px",
-                                borderBottom: "1px solid #f3f4f6",
-                                textAlign: "right",
-                                color: "#4b5563",
-                              }}
-                            >
-                              {typeof row.areaAcres === "number"
-                                ? row.areaAcres.toFixed(3)
-                                : "—"}
-                            </td>
-                          </tr>
+                            <div style={{ fontWeight: 500 }}>{p.address}</div>
+                            <div style={{ color: "#6b7280" }}>{p.id}</div>
+                            <div style={{ color: "#9ca3af" }}>{p.jurisdiction}</div>
+                          </div>
                         ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
+                      </div>
+                    )}
+                </>
+              )}
             </div>
-          )}
-        </div>
-      )}
-
-      {/* Modals */}
-      <FeasibilityModal
-        isOpen={isFeasibilityOpen}
-        parcel={selectedParcel}
-        onClose={() => setIsFeasibilityOpen(false)}
-      />
-
-      <ZoningReportPanel
-        isOpen={isReportOpen}
-        parcel={selectedParcel}
-        onClose={() => setIsReportOpen(false)}
-      />
+          </div>
+        </aside>
+      </div>
     </div>
   );
-}
 
-export default App;
+  return (
+    <>
+      {viewMode === "home" ? renderHome() : renderMapView()}
+      {showLogin && (
+        <LoginModal
+          onClose={() => setShowLogin(false)}
+          onLogin={(u) => {
+            setUser(u);
+            setShowLogin(false);
+          }}
+        />
+      )}
+      {showSmartCodeModal && (
+        <SmartCodeModal onClose={() => setShowSmartCodeModal(false)} />
+      )}
+      {showJurisdictionModal && (
+        <JurisdictionModal
+          selectedRegion={selectedRegion}
+          onSelect={(value) => setSelectedRegion(value)}
+          onClose={() => setShowJurisdictionModal(false)}
+        />
+      )}
+    </>
+  );
+}
