@@ -72,3 +72,28 @@ export async function getParcelSuggestions(query, limit = 10) {
     return [];
   }
 }
+
+export async function getSmartCodeAnswer(question, context) {
+  const res = await fetch(`${API_BASE}/smart-code`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      question,
+      context,
+    }),
+  });
+
+  if (!res.ok) {
+    throw new Error("Unable to reach smart code service.");
+  }
+
+  const data = await res.json();
+
+  if (data.error) {
+    throw new Error(data.error);
+  }
+
+  return data;
+}

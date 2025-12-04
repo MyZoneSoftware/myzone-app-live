@@ -4,3 +4,8 @@ dist/
 map-api/data/Parcels.geojson
 map-api/data/Situs_Addresses.CSV
 map-api/data/Situs_Addresses.geojson
+
+# Local environment files
+.env
+map-api/.env
+client/.env

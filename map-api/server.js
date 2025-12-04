@@ -5,6 +5,13 @@ const path = require("path");
 const https = require("https");
 const turf = require("@turf/turf");
 
+// Load environment + OpenAI
+require("dotenv").config();
+const OpenAI = require("openai");
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+});
+
 const app = express();
 const PORT = 5003;
 
@@ -13,7 +20,7 @@ const boundariesPath = path.join(__dirname, "data", "Municipal_Boundaries.geojso
 const parcelsPath = path.join(__dirname, "data", "Parcels.geojson");
 const zoningPath = path.join(__dirname, "data", "Zoning.geojson");
 
-// ---------- EXTERNAL ARCGIS PARCEL + PROPERTY SERVICE ----------
+// ---------- EXTERNAL ARCGIS PROPERTY SERVICE ----------
 const PROPERTY_SERVICE_BASE =
   "https://services1.arcgis.com/ZWOoUZbtaYePLlPw/arcgis/rest/services/Property_Information_Table/FeatureServer/0/query";
 
@@ -52,8 +59,8 @@ zoningLayer = safeLoadGeoJSON("zoning", zoningPath);
 // ---------- BASIC HELPERS ----------
 function pickParcelId(props = {}) {
   const candidateKeys = [
-    "PARID",          // local parcels
-    "PARCEL_NUMBER",  // remote property table
+    "PARID",
+    "PARCEL_NUMBER",
     "PCN",
     "PARCEL_ID",
     "PARCELID",
@@ -183,7 +190,7 @@ function pickZoningFLU(props = {}) {
   return "TBD";
 }
 
-// ---------- ARCGIS HELPERS ----------
+// ---------- ARCGIS PROPERTY HELPERS ----------
 function fetchJson(url) {
   return new Promise((resolve, reject) => {
     https
@@ -195,9 +202,6 @@ function fetchJson(url) {
         res.on("end", () => {
           try {
             const json = JSON.parse(data);
-            if (json.error) {
-              console.error("ArcGIS service error:", json.error);
-            }
             resolve(json);
           } catch (e) {
             reject(e);
@@ -303,68 +307,11 @@ async function fetchPropertyAttributesByParcelNumber(parcelNumber) {
     `f=json&outFields=*` +
     `&where=${whereClause}`;
 
-  console.log("ArcGIS lookup by PARCEL_NUMBER URL:", url);
-
   const json = await fetchJson(url);
   if (!json || !Array.isArray(json.features) || json.features.length === 0) {
     return null;
   }
   return json.features[0].attributes || null;
-}
-
-// Search remote layer by PCN / address / owner (NO UPPER(), plain LIKE)
-async function searchRemoteParcels(qRaw, limit = 10) {
-  const q = (qRaw || "").trim();
-  if (!q) return [];
-
-  const safeQ = q.replace(/'/g, "''");
-  const digits = q.replace(/\D/g, "");
-  const looksNumeric = digits.length >= 6;
-
-  let where;
-  if (looksNumeric) {
-    // PCN-like search
-    where = `PARCEL_NUMBER LIKE '${digits}%'`;
-  } else {
-    // Address / owner search – match against SITE_ADDR_STR, STREET_NAME, OWNER_NAME1, OWNER_NAME2
-    where =
-      "1=1 AND (" +
-      `SITE_ADDR_STR LIKE '%${safeQ}%'` +
-      ` OR STREET_NAME LIKE '%${safeQ}%'` +
-      ` OR OWNER_NAME1 LIKE '%${safeQ}%'` +
-      ` OR OWNER_NAME2 LIKE '%${safeQ}%'` +
-      ")";
-  }
-
-  const url =
-    `${PROPERTY_SERVICE_BASE}?` +
-    `f=json&outFields=*` +
-    `&where=${encodeURIComponent(where)}` +
-    `&resultRecordCount=${limit}`;
-
-  console.log("ArcGIS search URL:", url);
-
-  const json = await fetchJson(url);
-  if (!json || !Array.isArray(json.features)) {
-    return [];
-  }
-  return json.features;
-}
-
-// Match remote PARCEL_NUMBER to local parcels geometry
-function findLocalParcelByParcelNumber(parcelNumber) {
-  if (!parcels || !parcels.features || !parcelNumber) return null;
-  const targetDigits = String(parcelNumber).replace(/\D/g, "");
-  for (const feature of parcels.features) {
-    if (!feature || !feature.properties) continue;
-    const props = feature.properties;
-    const id = pickParcelId(props);
-    const idDigits = String(id).replace(/\D/g, "");
-    if (idDigits === targetDigits) {
-      return feature;
-    }
-  }
-  return null;
 }
 
 // ---------- ROUTES ----------
@@ -414,7 +361,7 @@ app.get("/api/zoning-geojson", (req, res) => {
   });
 });
 
-// Parcel-by-point (click on map)
+// Parcel-by-point
 app.get("/api/parcel-by-point", async (req, res) => {
   if (!parcels || !parcels.features) {
     return res.status(500).json({ error: "Parcels dataset not loaded" });
@@ -632,7 +579,7 @@ app.get("/api/buffer-parcels", (req, res) => {
   }
 });
 
-// Powerful search: PCN / address / owner, via remote service + local geometry
+// Powerful search: PARID / owner / partial
 app.get("/api/parcel-search", async (req, res) => {
   if (!parcels || !parcels.features) {
     return res.status(500).json({ error: "Parcels dataset not loaded" });
@@ -643,90 +590,10 @@ app.get("/api/parcel-search", async (req, res) => {
     return res.status(400).json({ error: "Missing q parameter" });
   }
 
-  let remoteFeatures = [];
-  try {
-    remoteFeatures = await searchRemoteParcels(qRaw, 10);
-  } catch (err) {
-    console.error("Remote parcel search error:", err.message);
-  }
+  const nearLat = parseFloat(req.query.nearLat);
+  const nearLng = parseFloat(req.query.nearLng);
+  const hasNear = Number.isFinite(nearLat) && Number.isFinite(nearLng);
 
-  if (remoteFeatures && remoteFeatures.length > 0) {
-    const bestRemote = remoteFeatures[0];
-    const attrs = bestRemote.attributes || {};
-    const parcelNumber = attrs.PARCEL_NUMBER || attrs.PARID || null;
-
-    const localParcel =
-      parcelNumber ? findLocalParcelByParcelNumber(parcelNumber) : null;
-
-    if (localParcel && localParcel.geometry) {
-      const props = localParcel.properties || {};
-      const parcelId = parcelNumber || pickParcelId(props);
-
-      const centroid = turf.centerOfMass(localParcel);
-      const [cLng, cLat] = centroid.geometry.coordinates;
-
-      let jurisdiction = pickParcelJurisdiction(props);
-      if (!jurisdiction && municipalBoundaries && municipalBoundaries.features) {
-        for (const muniFeature of municipalBoundaries.features) {
-          try {
-            if (
-              muniFeature &&
-              muniFeature.geometry &&
-              turf.booleanPointInPolygon(centroid, muniFeature)
-            ) {
-              jurisdiction = pickMunicipalityName(muniFeature.properties || {});
-              break;
-            }
-          } catch (_e) {
-            continue;
-          }
-        }
-      }
-      if (!jurisdiction) {
-        jurisdiction = "Palm Beach County (unincorporated)";
-      }
-
-      const areaSqMeters = turf.area(localParcel);
-      const areaAcres = areaSqMeters / 4046.8564224;
-
-      let zoningCode = "TBD";
-      let fluCode = "TBD";
-      if (zoningLayer && zoningLayer.features) {
-        for (const zFeature of zoningLayer.features) {
-          if (!zFeature || !zFeature.geometry) continue;
-          try {
-            if (turf.booleanIntersects(localParcel, zFeature)) {
-              const zProps = zFeature.properties || {};
-              zoningCode = pickZoningCode(zProps);
-              fluCode = pickZoningFLU(zProps);
-              break;
-            }
-          } catch (_e) {
-            continue;
-          }
-        }
-      }
-
-      const address = extractSitusFromAttrs(attrs) || fallbackLocalAddress(props);
-      const owner = pickOwnerName(attrs);
-
-      return res.json({
-        id: parcelId,
-        address,
-        owner,
-        jurisdiction,
-        zoning: zoningCode,
-        flu: fluCode,
-        areaAcres: Number.isFinite(areaAcres) ? areaAcres : null,
-        lat: cLat,
-        lng: cLng,
-        properties: props,
-        geometry: localParcel.geometry,
-      });
-    }
-  }
-
-  // Fallback: local-only search
   const q = qRaw.toLowerCase();
   const qDigits = qRaw.replace(/\D/g, "");
   const looksLikeParid = /^[0-9]{8,20}$/.test(qDigits);
@@ -807,8 +674,33 @@ app.get("/api/parcel-search", async (req, res) => {
     return res.status(404).json({ error: "No parcel found for that search" });
   }
 
-  candidates.sort((a, b) => b.score - a.score);
-  const best = candidates[0].feature;
+  let best = null;
+  if (hasNear) {
+    const centerPoint = turf.point([nearLng, nearLat]);
+    const maxScore = Math.max(...candidates.map((c) => c.score));
+    const topCandidates = candidates.filter((c) => c.score === maxScore);
+
+    let bestDist = Infinity;
+    for (const c of topCandidates) {
+      try {
+        const centroid = turf.centerOfMass(c.feature);
+        const dist = turf.distance(centerPoint, centroid, { units: "miles" });
+        if (dist < bestDist) {
+          bestDist = dist;
+          best = c.feature;
+        }
+      } catch (_e) {
+        continue;
+      }
+    }
+
+    if (!best) {
+      best = topCandidates[0].feature;
+    }
+  } else {
+    candidates.sort((a, b) => b.score - a.score);
+    best = candidates[0].feature;
+  }
 
   const props = best.properties || {};
   const parcelId = pickParcelId(props);
@@ -867,7 +759,7 @@ app.get("/api/parcel-search", async (req, res) => {
       owner = pickOwnerName(attrs);
     }
   } catch (err) {
-    console.error("Error fetching remote property info (fallback search):", err.message);
+    console.error("Error fetching remote property info (search):", err.message);
   }
   if (!address) {
     address = fallbackLocalAddress(props);
@@ -888,37 +780,135 @@ app.get("/api/parcel-search", async (req, res) => {
   });
 });
 
-// Autocomplete suggestions using remote Property_Information_Table layer
-app.get("/api/parcel-suggest", async (req, res) => {
+// Autocomplete suggestions
+app.get("/api/parcel-suggest", (req, res) => {
+  if (!parcels || !parcels.features) {
+    return res.json([]);
+  }
+
   const qRaw = (req.query.q || "").trim();
   if (!qRaw || qRaw.length < 2) {
     return res.json([]);
   }
 
+  const q = qRaw.toLowerCase();
+  const qDigits = qRaw.replace(/\D/g, "");
+  const looksNumeric = /^[0-9]{4,}$/.test(qDigits);
+
+  const suggestions = [];
+
+  for (const feature of parcels.features) {
+    if (!feature || !feature.properties) continue;
+    const props = feature.properties;
+    const id = pickParcelId(props);
+    if (!id || id === "UNKNOWN") continue;
+
+    let score = 0;
+    const idLower = id.toLowerCase();
+    const idDigits = id.replace(/\D/g, "");
+
+    if (looksNumeric && idDigits.startsWith(qDigits)) {
+      score = 3;
+    } else if (looksNumeric && idDigits.includes(qDigits)) {
+      score = 2;
+    } else if (idLower.includes(q)) {
+      score = 1;
+    }
+
+    if (score > 0) {
+      const jurisdiction = pickParcelJurisdiction(props) || "Palm Beach County";
+      const label = `${id} · ${jurisdiction}`;
+      suggestions.push({ id, label, score });
+    }
+
+    if (suggestions.length >= 200) {
+      break;
+    }
+  }
+
+  suggestions.sort((a, b) => b.score - a.score || a.id.localeCompare(b.id));
+
+  const trimmed = suggestions.slice(0, 10).map((s) => ({
+    id: s.id,
+    label: s.label,
+  }));
+
+  return res.json(trimmed);
+});
+
+// ---------- SMART CODE AI ENDPOINT ----------
+app.post("/api/smart-code", async (req, res) => {
   try {
-    const features = await searchRemoteParcels(qRaw, 10);
-    const suggestions = (features || []).map((f) => {
-      const attrs = f.attributes || {};
-      const id = attrs.PARCEL_NUMBER
-        ? String(attrs.PARCEL_NUMBER)
-        : attrs.PARID
-        ? String(attrs.PARID)
-        : "UNKNOWN";
+    const { question, context } = req.body || {};
 
-      const addr = extractSitusFromAttrs(attrs);
-      const owner = pickOwnerName(attrs);
+    if (!question || typeof question !== "string") {
+      return res
+        .status(400)
+        .json({ error: "Missing 'question' string in request body" });
+    }
 
-      const parts = [];
-      if (addr) parts.push(addr);
-      if (owner) parts.push(owner);
+    const ctx = context || {};
+    const region = ctx.region || "Palm Beach County, FL";
+    const parcel = ctx.parcel || {};
+    const jurisdiction = parcel.jurisdiction || "Unknown jurisdiction";
+    const zoning = parcel.zoning || "Unknown zoning";
+    const flu = parcel.flu || "Unknown FLU";
 
-      const label = parts.length > 0 ? parts.join(" · ") : id;
-      return { id, label };
+    const userPrompt = `
+You are a professional Florida land-use planner and zoning analyst.
+Answer clearly, conservatively, and do NOT give legal advice.
+
+Context:
+- Region: ${region}
+- Jurisdiction: ${jurisdiction}
+- Zoning: ${zoning}
+- Future Land Use (FLU): ${flu}
+
+Question:
+${question}
+
+Guidelines:
+- If you don't know the exact adopted dimensional standards for this jurisdiction, say that clearly.
+- You may describe *typical* RS (single-family residential) dimensional standards used in South Florida (lot size, width, setbacks, height, FAR) but label them as "typical" or "example", not official.
+- Do not fabricate code section numbers or ordinance references.
+- Keep the answer concise and practical, geared to a planner / applicant doing feasibility research.
+    `.trim();
+
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4.1-mini",
+      temperature: 0.2,
+      messages: [
+        {
+          role: "system",
+          content:
+            "You are a cautious, professional Florida land-use planner AI that helps interpret zoning and development standards. You never give legal advice.",
+        },
+        {
+          role: "user",
+          content: userPrompt,
+        },
+      ],
     });
-    return res.json(suggestions);
+
+    const answer =
+      completion.choices?.[0]?.message?.content ||
+      "No answer was generated by the smart code service.";
+
+    return res.json({
+      answer,
+      meta: {
+        model: "gpt-4.1-mini",
+        region,
+        jurisdiction,
+        zoning,
+        flu,
+      },
+    });
   } catch (err) {
-    console.error("parcel-suggest error:", err.message);
-    return res.json([]);
+    console.error("Error in /api/smart-code:", err);
+    return res.status(500).json({
+      error: "Smart code service failed. Please try again.",
+    });
   }
 });
 

@@ -15,14 +15,14 @@ import {
   getMunicipalBoundaries,
   getParcelsGeoJSON,
   getZoningGeoJSON,
+  getSmartCodeAnswer,
 } from "./services/parcelService";
 
 const DEFAULT_CENTER = { lat: 26.64, lng: -80.09 };
 const DEFAULT_ZOOM = 13;
-const BRAND_BLUE = "#0f172a"; // structural accents
-const BRAND_LIGHT_BLUE = "#2563eb"; // emphasized lighter blue for logo text
+const BRAND_BLUE = "#0f172a";
+const BRAND_LIGHT_BLUE = "#2563eb";
 
-// Sample Florida regions for the jurisdiction modal
 const FL_REGIONS = [
   { value: "Palm Beach County, FL", label: "Palm Beach County", type: "County" },
   {
@@ -45,8 +45,6 @@ const FL_REGIONS = [
     type: "Coming soon",
   },
 ];
-
-// ---------- Small helpers / components ----------
 
 function InteractiveMap({
   center,
@@ -176,7 +174,6 @@ function InfoField({ label, value }) {
   );
 }
 
-// Tile with side highlight on hover, uniform min-height
 function TileCard({
   onClick,
   title,
@@ -201,7 +198,7 @@ function TileCard({
     flexDirection: "column",
     justifyContent: "space-between",
     width: "100%",
-    minHeight: 130, // same min height across tiles
+    minHeight: 130,
     transition:
       "box-shadow 0.16s ease, transform 0.16s ease, border-left-color 0.16s ease",
     borderLeft: hovered ? `3px solid ${BRAND_BLUE}` : "3px solid transparent",
@@ -289,7 +286,6 @@ function TileCard({
   return content;
 }
 
-// Simple login modal
 function LoginModal({ onClose, onLogin }) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -407,9 +403,35 @@ function LoginModal({ onClose, onLogin }) {
   );
 }
 
-// Smart code search modal (UI only, AI wiring later)
-function SmartCodeModal({ onClose }) {
+function SmartCodeModal({ onClose, context }) {
   const [question, setQuestion] = useState("");
+  const [answer, setAnswer] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  const handleAsk = async () => {
+    const q = question.trim();
+    if (!q) return;
+
+    setLoading(true);
+    setError(null);
+    setAnswer("");
+
+    try {
+      const data = await getSmartCodeAnswer(q, context);
+      setAnswer(data.answer || "No answer was generated.");
+    } catch (err) {
+      console.error("Smart code error:", err);
+      setError(
+        err.message || "Unable to generate a smart code answer right now.",
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const jurisdictionLabel =
+    context?.parcel?.jurisdiction || context?.region || "Selected jurisdiction";
 
   return (
     <div
@@ -444,7 +466,12 @@ function SmartCodeModal({ onClose }) {
             marginBottom: 8,
           }}
         >
-          <div style={{ fontSize: 15, fontWeight: 600 }}>Smart code search</div>
+          <div>
+            <div style={{ fontSize: 15, fontWeight: 600 }}>Smart code search</div>
+            <div style={{ fontSize: 11, color: "#6b7280", marginTop: 2 }}>
+              Context: {jurisdictionLabel}
+            </div>
+          </div>
           <button
             onClick={onClose}
             style={{
@@ -460,8 +487,8 @@ function SmartCodeModal({ onClose }) {
         </div>
 
         <p style={{ fontSize: 12, color: "#6b7280", marginBottom: 10 }}>
-          Ask zoning, future land use, or entitlement questions. MyZ🌎NE will use your
-          jurisdiction’s zoning code plus general planning best practices.
+          Ask zoning, future land use, or entitlement questions. MyZ🌎NE will use the
+          selected parcel&apos;s zoning + FLU context plus general planning knowledge.
         </p>
 
         <textarea
@@ -482,23 +509,43 @@ function SmartCodeModal({ onClose }) {
           }}
         />
 
-        <button
-          type="button"
-          disabled
+        <div
           style={{
-            alignSelf: "flex-start",
-            borderRadius: 999,
-            border: "none",
-            padding: "6px 12px",
-            fontSize: 12,
-            backgroundColor: "#e5e7eb",
-            color: "#6b7280",
-            cursor: "not-allowed",
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
             marginBottom: 10,
+            flexWrap: "wrap",
           }}
         >
-          Live answers powered by OpenAI &amp; MyZ🌎NE (coming soon)
-        </button>
+          <button
+            type="button"
+            onClick={handleAsk}
+            disabled={loading || !question.trim()}
+            style={{
+              alignSelf: "flex-start",
+              borderRadius: 999,
+              border: "none",
+              padding: "6px 12px",
+              fontSize: 12,
+              backgroundColor: BRAND_BLUE,
+              color: "#ffffff",
+              cursor: loading || !question.trim() ? "default" : "pointer",
+              opacity: loading || !question.trim() ? 0.7 : 1,
+            }}
+          >
+            {loading ? "Thinking…" : "Ask"}
+          </button>
+
+          <span
+            style={{
+              fontSize: 11,
+              color: "#6b7280",
+            }}
+          >
+            Live answers powered by OpenAI &amp; MyZ🌎NE.
+          </span>
+        </div>
 
         <div
           style={{
@@ -507,30 +554,56 @@ function SmartCodeModal({ onClose }) {
             border: "1px dashed #e5e7eb",
             padding: "10px 10px",
             fontSize: 12,
-            color: "#6b7280",
+            color: "#374151",
             backgroundColor: "#f9fafb",
+            overflowY: "auto",
           }}
         >
-          <div style={{ marginBottom: 4, fontWeight: 500, fontSize: 12 }}>
-            Preview response (static)
-          </div>
-          <p style={{ marginBottom: 6 }}>
-            Here you will see structured summaries of applicable zoning districts,
-            dimensional standards (lot size, setbacks, height), and any special
-            entitlements or conditional uses, based on the selected jurisdiction and
-            parcel.
-          </p>
-          <p>
-            You’ll also be able to attach these findings directly to a development
-            application or feasibility report in MyZ🌎NE.
-          </p>
+          {error && (
+            <div style={{ color: "#b91c1c", marginBottom: 6 }}>{error}</div>
+          )}
+
+          {!error && !answer && !loading && (
+            <>
+              <div style={{ marginBottom: 4, fontWeight: 500, fontSize: 12 }}>
+                How this works
+              </div>
+              <p style={{ marginBottom: 6 }}>
+                Type a question about zoning, future land use, or development potential.
+                The assistant will ground its answer in the selected parcel&apos;s
+                context (jurisdiction, zoning code, FLU, and area) plus general planning
+                practice.
+              </p>
+              <p style={{ color: "#9ca3af" }}>
+                Always verify results against the adopted zoning code and contact the
+                local jurisdiction for an official determination.
+              </p>
+            </>
+          )}
+
+          {loading && !answer && (
+            <p style={{ color: "#6b7280" }}>
+              Generating a zoning summary and entitlement overview…
+            </p>
+          )}
+
+          {answer && !error && (
+            <div
+              style={{
+                whiteSpace: "pre-wrap",
+                fontSize: 12,
+                color: "#111827",
+              }}
+            >
+              {answer}
+            </div>
+          )}
         </div>
       </div>
     </div>
   );
 }
 
-// Jurisdiction picker modal with tile-style options
 function JurisdictionModal({ selectedRegion, onSelect, onClose }) {
   const [query, setQuery] = useState("");
 
@@ -690,58 +763,38 @@ function JurisdictionModal({ selectedRegion, onSelect, onClose }) {
   );
 }
 
-// ---------- MAIN APP ----------
-
 export default function App() {
-  // "home" = search-first landing, "map" = full map & details
   const [viewMode, setViewMode] = useState("home");
-
-  // User session (simple, no backend yet)
   const [user, setUser] = useState(null);
   const [showLogin, setShowLogin] = useState(false);
-
-  // Smart code search modal
   const [showSmartCodeModal, setShowSmartCodeModal] = useState(false);
-
-  // Jurisdiction modal
   const [showJurisdictionModal, setShowJurisdictionModal] = useState(false);
 
-  // Map state
   const [mapCenter, setMapCenter] = useState(DEFAULT_CENTER);
   const [zoom] = useState(DEFAULT_ZOOM);
 
-  // Layers
   const [boundaries, setBoundaries] = useState(null);
   const [parcelsGeoJSON, setParcelsGeoJSON] = useState(null);
   const [zoningGeoJSON, setZoningGeoJSON] = useState(null);
   const [layersLoading, setLayersLoading] = useState(true);
   const [layersError, setLayersError] = useState(null);
 
-  // Selection + buffer
   const [selectedParcel, setSelectedParcel] = useState(null);
   const [bufferReport, setBufferReport] = useState(null);
   const [bufferRadiusFeet, setBufferRadiusFeet] = useState(300);
   const [bufferLoading, setBufferLoading] = useState(false);
   const [bufferError, setBufferError] = useState(null);
 
-  // Collapsible panels (good for mobile)
   const [parcelPanelOpen, setParcelPanelOpen] = useState(true);
   const [bufferPanelOpen, setBufferPanelOpen] = useState(true);
 
-  // Search
   const [searchQuery, setSearchQuery] = useState("");
   const [searchLoading, setSearchLoading] = useState(false);
 
-  // Global banner
   const [banner, setBanner] = useState(null);
-
-  // Top-bar hamburger menu
   const [menuOpen, setMenuOpen] = useState(false);
-
-  // Florida jurisdiction selector (UI only for now)
   const [selectedRegion, setSelectedRegion] = useState("Palm Beach County, FL");
 
-  // ---------- Load base layers on mount ----------
   useEffect(() => {
     async function loadLayers() {
       setLayersLoading(true);
@@ -765,8 +818,6 @@ export default function App() {
 
     loadLayers();
   }, []);
-
-  // ---------- Handlers ----------
 
   const handleMapClick = async (lat, lng) => {
     setBanner(null);
@@ -857,7 +908,6 @@ export default function App() {
     [bufferReport],
   );
 
-  // Dynamic jurisdiction for header (still grounded in Palm Beach dataset)
   const headerJurisdiction = selectedParcel?.jurisdiction
     ? `${selectedRegion} · ${selectedParcel.jurisdiction}`
     : `${selectedRegion} (Beta – Palm Beach data)`;
@@ -974,7 +1024,6 @@ export default function App() {
         <button
           type="button"
           onClick={() => {
-            // Feasibility analysis placeholder
             closeMenu();
           }}
           style={{
@@ -994,7 +1043,6 @@ export default function App() {
         <button
           type="button"
           onClick={() => {
-            // Land use & zoning comparison placeholder
             closeMenu();
           }}
           style={{
@@ -1033,8 +1081,6 @@ export default function App() {
       </div>
     );
 
-  // ---------- Views ----------
-
   const renderHome = () => (
     <div
       style={{
@@ -1044,7 +1090,6 @@ export default function App() {
         flexDirection: "column",
       }}
     >
-      {/* Header */}
       <header
         style={{
           padding: "10px 16px",
@@ -1117,7 +1162,6 @@ export default function App() {
           {headerJurisdiction}
         </div>
 
-        {/* Right section: user chip + hamburger menu */}
         <div
           style={{
             display: "flex",
@@ -1197,7 +1241,6 @@ export default function App() {
         </div>
       )}
 
-      {/* Main content - slightly above center */}
       <main
         style={{
           flex: 1,
@@ -1234,7 +1277,6 @@ export default function App() {
           </p>
         </div>
 
-        {/* Big primary search bar */}
         <form
           onSubmit={handleSearchSubmit}
           style={{
@@ -1293,7 +1335,6 @@ export default function App() {
           </button>
         </form>
 
-        {/* Tiles - uniform size, compact, single row on desktop */}
         <div
           style={{
             width: "100%",
@@ -1303,7 +1344,6 @@ export default function App() {
             gap: 12,
           }}
         >
-          {/* Map tile (interactive) */}
           <TileCard
             interactive
             onClick={() => setViewMode("map")}
@@ -1312,17 +1352,15 @@ export default function App() {
             description="Click a parcel to see zoning, FLU, jurisdiction, and buffers."
           />
 
-          {/* Smart code search tile */}
           <TileCard
             interactive
             onClick={() => setShowSmartCodeModal(true)}
             title="Smart code search"
             icon="🤖"
             description="Ask about zoning standards and entitlements using AI."
-            footer="Powered by MyZ🌎NE + OpenAI (coming soon)."
+            footer="Powered by MyZ🌎NE + OpenAI."
           />
 
-          {/* Jurisdiction selector tile (click opens floating modal) */}
           <TileCard
             title="Jurisdiction context"
             icon="🏛️"
@@ -1355,7 +1393,6 @@ export default function App() {
             </div>
           </TileCard>
 
-          {/* Applications tile (coming soon) */}
           <TileCard
             muted
             title="Applications workspace"
@@ -1364,7 +1401,6 @@ export default function App() {
             footer="Coming soon."
           />
 
-          {/* Noticing / mail merge tile (coming soon) */}
           <TileCard
             muted
             title="Noticing & mail merge"
@@ -1398,7 +1434,6 @@ export default function App() {
         flexDirection: "column",
       }}
     >
-      {/* Top bar for map view */}
       <header
         style={{
           padding: "10px 16px",
@@ -1429,7 +1464,6 @@ export default function App() {
           Map &amp; parcel explorer
         </div>
 
-        {/* Jurisdiction indicator */}
         <div
           style={{
             fontSize: 11,
@@ -1443,7 +1477,6 @@ export default function App() {
           {headerJurisdiction}
         </div>
 
-        {/* Compact search in header */}
         <form
           onSubmit={handleSearchSubmit}
           style={{
@@ -1489,7 +1522,6 @@ export default function App() {
           </button>
         </form>
 
-        {/* Hamburger menu in map view too */}
         <button
           type="button"
           onClick={() => setMenuOpen((v) => !v)}
@@ -1533,7 +1565,6 @@ export default function App() {
         </div>
       )}
 
-      {/* Map + bottom info panel (mobile friendly) */}
       <div
         style={{
           flex: 1,
@@ -1542,7 +1573,6 @@ export default function App() {
           minHeight: 0,
         }}
       >
-        {/* Map area */}
         <div style={{ flex: 1, minHeight: "50vh" }}>
           {layersLoading ? (
             <div
@@ -1584,7 +1614,6 @@ export default function App() {
           )}
         </div>
 
-        {/* Bottom info / buffer panel */}
         <aside
           style={{
             backgroundColor: "#ffffff",
@@ -1599,7 +1628,6 @@ export default function App() {
               gap: 16,
             }}
           >
-            {/* Selected parcel block (collapsible) */}
             <div style={{ fontSize: 13 }}>
               <button
                 type="button"
@@ -1677,7 +1705,6 @@ export default function App() {
               )}
             </div>
 
-            {/* Buffer block (collapsible) */}
             <div
               style={{
                 fontSize: 13,
@@ -1866,7 +1893,13 @@ export default function App() {
         />
       )}
       {showSmartCodeModal && (
-        <SmartCodeModal onClose={() => setShowSmartCodeModal(false)} />
+        <SmartCodeModal
+          onClose={() => setShowSmartCodeModal(false)}
+          context={{
+            region: selectedRegion,
+            parcel: selectedParcel,
+          }}
+        />
       )}
       {showJurisdictionModal && (
         <JurisdictionModal
