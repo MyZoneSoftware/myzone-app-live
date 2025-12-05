@@ -7,6 +7,7 @@ import {
   useMapEvents,
 } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
+import "./leaflet-fix.css";
 
 import {
   getParcelByLatLng,
@@ -70,6 +71,31 @@ function InteractiveMap({
       });
     }
   }, [center, zoom, map]);
+
+  // Ensure Leaflet recalculates layout when the map is mounted or becomes visible
+  useEffect(() => {
+    const resize = () => {
+      try {
+        map.invalidateSize();
+      } catch (e) {
+        // ignore
+      }
+    };
+
+    // Run once when the map is ready
+    resize();
+
+    // Also respond to window resizes (and layout shifts)
+    window.addEventListener("resize", resize);
+
+    // Extra nudge shortly after mount to handle hidden-then-shown transitions
+    const t = setTimeout(resize, 300);
+
+    return () => {
+      window.removeEventListener("resize", resize);
+      clearTimeout(t);
+    };
+  }, [map]);
 
   const boundaryStyle = {
     color: "#d4d4d8",
@@ -148,7 +174,11 @@ function MapWrapper(props) {
     <MapContainer
       center={[props.center.lat, props.center.lng]}
       zoom={props.zoom}
-      style={{ width: "100%", height: "100%" }}
+      style={{
+        width: "100%",
+        height: "100%",
+        minHeight: "calc(100vh - 140px)",
+      }}
       scrollWheelZoom={true}
     >
       <InteractiveMap {...props} />
