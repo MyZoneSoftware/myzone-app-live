@@ -1,0 +1,4 @@
+/* Ensure the Leaflet map container is always tall enough to be visible */
+.leaflet-container {
+  min-height: 360px;
+}
