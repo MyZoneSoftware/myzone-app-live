@@ -1,99 +1,212 @@
-const API_BASE = "/api";
+const MAP_API_BASE = "http://localhost:5003";
 
-async function handleJsonResponse(res, defaultErrorMessage) {
+// ---- Helper: basic JSON fetch with friendly error ----
+async function fetchJson(url, errorMessage) {
+  const res = await fetch(url);
   if (!res.ok) {
-    let msg = defaultErrorMessage;
+    let detail = "";
     try {
-      const data = await res.json();
-      if (data && data.error) msg = data.error;
+      detail = await res.text();
     } catch (_e) {}
-    throw new Error(msg);
+
+    console.error("Fetch error for", url, "status", res.status, detail);
+    throw new Error(errorMessage || "Request failed.");
   }
   return res.json();
 }
 
-export async function getMunicipalBoundaries() {
-  const res = await fetch(`${API_BASE}/municipal-boundaries`);
-  return handleJsonResponse(res, "Unable to load municipal boundaries");
-}
+// ---- Helper: centroid from GeoJSON geometry (Polygon / MultiPolygon) ----
+function computeCentroidFromGeometry(geometry) {
+  if (!geometry || !geometry.type || !geometry.coordinates) return null;
 
-export async function getParcelsGeoJSON() {
-  const res = await fetch(`${API_BASE}/parcels-geojson`);
-  return handleJsonResponse(res, "Unable to load parcels layer");
-}
+  const coords = [];
 
-export async function getZoningGeoJSON() {
-  const res = await fetch(`${API_BASE}/zoning-geojson`);
-  return handleJsonResponse(res, "Unable to load zoning layer");
-}
-
-export async function getParcelByLatLng(lat, lng) {
-  const params = new URLSearchParams({ lat: String(lat), lng: String(lng) });
-  const res = await fetch(`${API_BASE}/parcel-by-point?${params.toString()}`);
-  return handleJsonResponse(res, "Unable to identify parcel at that location");
-}
-
-export async function getParcelBySearch(query, fallbackCenter) {
-  const params = new URLSearchParams({ q: query });
-  if (fallbackCenter && fallbackCenter.length === 2) {
-    params.set("nearLat", String(fallbackCenter[0]));
-    params.set("nearLng", String(fallbackCenter[1]));
+  if (geometry.type === "Polygon") {
+    geometry.coordinates.forEach((ring) => {
+      (ring || []).forEach((pt) => {
+        if (Array.isArray(pt) && pt.length >= 2) {
+          coords.push([pt[0], pt[1]]);
+        }
+      });
+    });
+  } else if (geometry.type === "MultiPolygon") {
+    geometry.coordinates.forEach((poly) => {
+      (poly || []).forEach((ring) => {
+        (ring || []).forEach((pt) => {
+          if (Array.isArray(pt) && pt.length >= 2) {
+            coords.push([pt[0], pt[1]]);
+          }
+        });
+      });
+    });
   }
-  const res = await fetch(`${API_BASE}/parcel-search?${params.toString()}`);
-  return handleJsonResponse(res, "Unable to find a parcel for that search");
+
+  if (!coords.length) return null;
+
+  let sumX = 0;
+  let sumY = 0;
+  for (const [x, y] of coords) {
+    sumX += x;
+    sumY += y;
+  }
+
+  const lng = sumX / coords.length;
+  const lat = sumY / coords.length;
+
+  return { lat, lng };
 }
 
+// ---------------------------------------------------------------------
+//  PARCEL IDENTIFICATION
+// ---------------------------------------------------------------------
+
+// Map click → parcel-by-point
+export async function getParcelByLatLng(lat, lng) {
+  const url = `${MAP_API_BASE}/api/parcel-by-point?lat=${encodeURIComponent(
+    lat,
+  )}&lng=${encodeURIComponent(lng)}`;
+
+  const data = await fetchJson(
+    url,
+    "Unable to identify a parcel at that location.",
+  );
+
+  // Ensure lat/lng exist on the object for map centering & buffer
+  if (typeof data.lat !== "number" || typeof data.lng !== "number") {
+    const centroid = computeCentroidFromGeometry(data.geometry);
+    if (centroid) {
+      data.lat = centroid.lat;
+      data.lng = centroid.lng;
+    } else {
+      data.lat = lat;
+      data.lng = lng;
+    }
+  }
+
+  return data;
+}
+
+// Search bar → search by PCN / PARID
+export async function getParcelBySearch(query, fallbackCenter) {
+  const trimmed = String(query || "").trim();
+  if (!trimmed) {
+    throw new Error("Please enter a PCN / parcel ID.");
+  }
+
+  const params = new URLSearchParams({
+    parid: trimmed,
+  });
+
+  const url = `${MAP_API_BASE}/api/parcel-by-id?${params.toString()}`;
+
+  const data = await fetchJson(
+    url,
+    "Unable to find a parcel for that search.",
+  );
+
+  if (typeof data.lat !== "number" || typeof data.lng !== "number") {
+    const centroid = computeCentroidFromGeometry(data.geometry);
+    if (centroid) {
+      data.lat = centroid.lat;
+      data.lng = centroid.lng;
+    } else if (
+      Array.isArray(fallbackCenter) &&
+      fallbackCenter.length === 2 &&
+      typeof fallbackCenter[0] === "number" &&
+      typeof fallbackCenter[1] === "number"
+    ) {
+      data.lat = fallbackCenter[0];
+      data.lng = fallbackCenter[1];
+    }
+  }
+
+  return data;
+}
+
+// ---------------------------------------------------------------------
+//  BUFFER / NOTICE RADIUS
+// ---------------------------------------------------------------------
 export async function getBufferReport(lat, lng, radiusFeet) {
   const params = new URLSearchParams({
     lat: String(lat),
     lng: String(lng),
     radiusFeet: String(radiusFeet),
   });
-  const res = await fetch(`${API_BASE}/buffer-parcels?${params.toString()}`);
-  return handleJsonResponse(res, "Unable to generate buffer / notice-radius report");
-}
 
-// --- NEW: autocomplete suggestions ---
-export async function getParcelSuggestions(query, limit = 10) {
-  if (!query || query.trim().length < 2) return [];
-  const params = new URLSearchParams({
-    q: query.trim(),
-    limit: String(limit),
-  });
-  const res = await fetch(`${API_BASE}/parcel-suggest?${params.toString()}`);
-  if (!res.ok) {
-    return [];
-  }
+  const url = `${MAP_API_BASE}/api/buffer-parcels?${params.toString()}`;
+
+  const res = await fetch(url);
+  let data = null;
   try {
-    const data = await res.json();
-    if (Array.isArray(data)) return data;
-    return [];
-  } catch {
-    return [];
+    data = await res.json();
+  } catch (_e) {
+    console.error("Buffer report: invalid JSON response");
+    throw new Error("Unable to generate buffer / notice-radius report.");
   }
-}
-
-export async function getSmartCodeAnswer(question, context) {
-  const res = await fetch(`${API_BASE}/smart-code`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      question,
-      context,
-    }),
-  });
 
   if (!res.ok) {
-    throw new Error("Unable to reach smart code service.");
-  }
-
-  const data = await res.json();
-
-  if (data.error) {
-    throw new Error(data.error);
+    const msg = data && data.error
+      ? data.error
+      : "Unable to generate buffer / notice-radius report.";
+    throw new Error(msg);
   }
 
   return data;
+}
+
+// ---------------------------------------------------------------------
+//  BASE MAP LAYERS
+// ---------------------------------------------------------------------
+export async function getMunicipalBoundaries() {
+  const url = `${MAP_API_BASE}/api/municipal-boundaries`;
+  return fetchJson(url, "Unable to load municipal boundaries.");
+}
+
+export async function getParcelsGeoJSON() {
+  const url = `${MAP_API_BASE}/api/parcels-geojson`;
+  return fetchJson(url, "Unable to load parcels layer.");
+}
+
+export async function getZoningGeoJSON() {
+  const url = `${MAP_API_BASE}/api/zoning-geojson`;
+  return fetchJson(url, "Unable to load zoning layer.");
+}
+
+// ---------------------------------------------------------------------
+//  SMART CODE / GPT-ASSISTED ANSWERS
+// ---------------------------------------------------------------------
+export async function getSmartCodeAnswer(question, context) {
+  const url = `${MAP_API_BASE}/api/smart-code`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ question, context }),
+  });
+
+  if (!res.ok) {
+    let detail = "";
+    try {
+      detail = await res.text();
+    } catch (_e) {}
+    console.error("Smart code error:", res.status, detail);
+    throw new Error("Smart code service unavailable.");
+  }
+
+  return res.json();
+}
+
+// (Optional future helper, not yet wired to UI)
+export async function getJurisdictionProfile(jurisdiction, zoning, flu) {
+  const url = `${MAP_API_BASE}/api/jurisdiction-profile`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ jurisdiction, zoning, flu }),
+  });
+
+  if (!res.ok) {
+    throw new Error("Jurisdiction profile service unavailable.");
+  }
+
+  return res.json();
 }

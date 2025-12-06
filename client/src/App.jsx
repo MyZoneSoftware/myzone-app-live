@@ -17,6 +17,7 @@ import {
   getParcelsGeoJSON,
   getZoningGeoJSON,
   getSmartCodeAnswer,
+  getJurisdictionProfile,   // ⬅️ NEW IMPORT
 } from "./services/parcelService";
 
 const DEFAULT_CENTER = { lat: 26.64, lng: -80.09 };
@@ -439,6 +440,53 @@ function SmartCodeModal({ onClose, context }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
+  // NEW: local profile (Royal Palm Beach RS, etc.)
+  const [profile, setProfile] = useState(null);
+  const [profileLoading, setProfileLoading] = useState(false);
+  const [profileError, setProfileError] = useState(null);
+
+  // Load jurisdiction profile when parcel context is available
+  useEffect(() => {
+    const j = context?.parcel?.jurisdiction;
+    const z = context?.parcel?.zoning;
+    const f = context?.parcel?.flu;
+
+    if (!j || !z) {
+      setProfile(null);
+      setProfileError(null);
+      setProfileLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+
+    (async () => {
+      setProfileLoading(true);
+      setProfileError(null);
+      try {
+        const data = await getJurisdictionProfile(j, z, f);
+        if (!cancelled) {
+          setProfile(data);
+        }
+      } catch (err) {
+        console.error("Jurisdiction profile error:", err);
+        if (!cancelled) {
+          setProfileError(
+            err.message || "Unable to load local jurisdiction profile.",
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setProfileLoading(false);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [context?.parcel?.jurisdiction, context?.parcel?.zoning, context?.parcel?.flu]);
+
   const handleAsk = async () => {
     const q = question.trim();
     if (!q) return;
@@ -518,11 +566,12 @@ function SmartCodeModal({ onClose, context }) {
 
         <p style={{ fontSize: 12, color: "#6b7280", marginBottom: 10 }}>
           Ask zoning, future land use, or entitlement questions. MyZ🌎NE will use the
-          selected parcel&apos;s zoning + FLU context plus general planning knowledge.
+          selected parcel&apos;s zoning + FLU context, local profiles (where available),
+          plus general planning knowledge.
         </p>
 
         <textarea
-          placeholder="Example: What are the minimum lot size and setbacks for RS zoning in Palm Springs, FL?"
+          placeholder="Example: What are the minimum lot size and setbacks for RS zoning in Royal Palm Beach, FL?"
           value={question}
           onChange={(e) => setQuestion(e.target.value)}
           style={{
@@ -573,7 +622,7 @@ function SmartCodeModal({ onClose, context }) {
               color: "#6b7280",
             }}
           >
-            Live answers powered by OpenAI &amp; MyZ🌎NE.
+            Local profile + live answers powered by OpenAI &amp; MyZ🌎NE.
           </span>
         </div>
 
@@ -589,6 +638,135 @@ function SmartCodeModal({ onClose, context }) {
             overflowY: "auto",
           }}
         >
+          {/* Local jurisdiction profile (Royal Palm Beach RS, etc.) */}
+          {profileLoading && (
+            <p
+              style={{
+                fontSize: 11,
+                color: "#6b7280",
+                marginBottom: 6,
+              }}
+            >
+              Loading local zoning profile…
+            </p>
+          )}
+
+          {profileError && (
+            <div
+              style={{
+                color: "#b91c1c",
+                fontSize: 11,
+                marginBottom: 6,
+              }}
+            >
+              {profileError}
+            </div>
+          )}
+
+          {profile && !profileLoading && (
+            <div
+              style={{
+                marginBottom: 10,
+                padding: "8px 8px",
+                borderRadius: 8,
+                backgroundColor: "#eef2ff",
+                border: "1px solid #e0e7ff",
+              }}
+            >
+              <div
+                style={{
+                  fontSize: 11,
+                  fontWeight: 600,
+                  color: "#111827",
+                  textTransform: "uppercase",
+                  marginBottom: 4,
+                }}
+              >
+                Local profile –{" "}
+                {profile.jurisdiction || "Jurisdiction"} ·{" "}
+                {profile.zoning || "Zoning"}
+              </div>
+
+              {profile.summary && (
+                <p
+                  style={{
+                    fontSize: 12,
+                    color: "#1f2937",
+                    marginBottom: 4,
+                  }}
+                >
+                  {profile.summary}
+                </p>
+              )}
+
+              {Array.isArray(profile.typicalUses) &&
+                profile.typicalUses.length > 0 && (
+                  <div style={{ marginBottom: 4 }}>
+                    <div
+                      style={{
+                        fontSize: 11,
+                        fontWeight: 500,
+                        color: "#374151",
+                        marginBottom: 2,
+                      }}
+                    >
+                      Typical uses
+                    </div>
+                    <ul
+                      style={{
+                        paddingLeft: 18,
+                        margin: 0,
+                        fontSize: 12,
+                        color: "#374151",
+                      }}
+                    >
+                      {profile.typicalUses.map((u, idx) => (
+                        <li key={idx} style={{ marginBottom: 2 }}>
+                          {u}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+              {profile.dimensionalSummary && (
+                <p
+                  style={{
+                    fontSize: 11,
+                    color: "#4b5563",
+                    marginBottom: 4,
+                  }}
+                >
+                  {profile.dimensionalSummary}
+                </p>
+              )}
+
+              {profile.notes && (
+                <p
+                  style={{
+                    fontSize: 11,
+                    color: "#4b5563",
+                    marginBottom: 4,
+                  }}
+                >
+                  {profile.notes}
+                </p>
+              )}
+
+              {profile.disclaimer && (
+                <p
+                  style={{
+                    fontSize: 10,
+                    color: "#6b7280",
+                  }}
+                >
+                  {profile.disclaimer}
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* Existing Smart Code answer / helper text */}
           {error && (
             <div style={{ color: "#b91c1c", marginBottom: 6 }}>{error}</div>
           )}
@@ -601,8 +779,8 @@ function SmartCodeModal({ onClose, context }) {
               <p style={{ marginBottom: 6 }}>
                 Type a question about zoning, future land use, or development potential.
                 The assistant will ground its answer in the selected parcel&apos;s
-                context (jurisdiction, zoning code, FLU, and area) plus general planning
-                practice.
+                context (jurisdiction, zoning code, FLU, and area), plus any available
+                local profile and general planning practice.
               </p>
               <p style={{ color: "#9ca3af" }}>
                 Always verify results against the adopted zoning code and contact the
