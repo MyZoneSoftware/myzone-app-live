@@ -20,6 +20,8 @@ import {
   getJurisdictionProfile,   // ⬅️ NEW IMPORT
 } from "./services/parcelService";
 
+import FeasibilityModal from "./components/FeasibilityModal";
+
 const DEFAULT_CENTER = { lat: 26.64, lng: -80.09 };
 const DEFAULT_ZOOM = 13;
 const BRAND_BLUE = "#0f172a";
@@ -977,6 +979,7 @@ export default function App() {
   const [showLogin, setShowLogin] = useState(false);
   const [showSmartCodeModal, setShowSmartCodeModal] = useState(false);
   const [showJurisdictionModal, setShowJurisdictionModal] = useState(false);
+  const [showFeasibilityModal, setShowFeasibilityModal] = useState(false);
 
   const [mapCenter, setMapCenter] = useState(DEFAULT_CENTER);
   const [zoom] = useState(DEFAULT_ZOOM);
@@ -1875,35 +1878,76 @@ export default function App() {
               {parcelPanelOpen && (
                 <>
                   {selectedParcel ? (
-                    <div
-                      style={{
-                        display: "grid",
-                        gridTemplateColumns:
-                          "repeat(auto-fit, minmax(130px, 1fr))",
-                        gap: 8,
-                      }}
-                    >
-                      <InfoField label="Label" value={selectedParcel.address} />
-                      <InfoField label="Parcel ID" value={selectedParcel.id} />
-                      <InfoField label="Owner" value={selectedParcel.owner || "—"} />
-                      <InfoField
-                        label="Jurisdiction"
-                        value={selectedParcel.jurisdiction}
-                      />
-                      <InfoField label="Zoning" value={selectedParcel.zoning} />
-                      <InfoField
-                        label="Future Land Use"
-                        value={selectedParcel.flu || "TBD"}
-                      />
-                      <InfoField
-                        label="Area (acres)"
-                        value={
-                          selectedParcel.areaAcres != null
-                            ? selectedParcel.areaAcres.toFixed(3)
-                            : "—"
-                        }
-                      />
-                    </div>
+                    <>
+                      <div
+                        style={{
+                          display: "grid",
+                          gridTemplateColumns:
+                            "repeat(auto-fit, minmax(130px, 1fr))",
+                          gap: 8,
+                        }}
+                      >
+                        <InfoField label="Label" value={selectedParcel.address} />
+                        <InfoField label="Parcel ID" value={selectedParcel.id} />
+                        <InfoField label="Owner" value={selectedParcel.owner || "—"} />
+                        <InfoField
+                          label="Jurisdiction"
+                          value={selectedParcel.jurisdiction}
+                        />
+                        <InfoField label="Zoning" value={selectedParcel.zoning} />
+                        <InfoField
+                          label="Future Land Use"
+                          value={selectedParcel.flu || "TBD"}
+                        />
+                        <InfoField
+                          label="Area (acres)"
+                          value={
+                            selectedParcel.areaAcres != null
+                              ? selectedParcel.areaAcres.toFixed(3)
+                              : "—"
+                          }
+                        />
+                      </div>
+
+                      <div
+                        style={{
+                          marginTop: 10,
+                          display: "flex",
+                          flexWrap: "wrap",
+                          gap: 8,
+                        }}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => setShowSmartCodeModal(true)}
+                          style={{
+                            borderRadius: 999,
+                            border: "1px solid #e5e7eb",
+                            padding: "6px 10px",
+                            fontSize: 12,
+                            backgroundColor: "#f9fafb",
+                            cursor: "pointer",
+                          }}
+                        >
+                          Smart code search
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setShowFeasibilityModal(true)}
+                          style={{
+                            borderRadius: 999,
+                            border: "1px solid #e5e7eb",
+                            padding: "6px 10px",
+                            fontSize: 12,
+                            backgroundColor: "#f9fafb",
+                            cursor: "pointer",
+                          }}
+                        >
+                          Feasibility
+                        </button>
+                      </div>
+                    </>
                   ) : (
                     <div style={{ color: "#9ca3af", fontSize: 12 }}>
                       Click a parcel on the map or search by PCN to view zoning details.
@@ -2116,6 +2160,11 @@ export default function App() {
           onClose={() => setShowJurisdictionModal(false)}
         />
       )}
+      <FeasibilityModal
+        open={showFeasibilityModal}
+        onClose={() => setShowFeasibilityModal(false)}
+        parcel={selectedParcel}
+      />
     </>
   );
 }

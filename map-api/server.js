@@ -1005,3 +1005,43 @@ app.get("/api/parcel-by-id", (req, res) => {
     geometry: foundParcel.geometry,
   });
 });
+
+// ============================================================
+// Preliminary Feasibility API (MVP)
+// Uses the shared feasibility engine at ../feasibility/feasibilityEngine.js
+// ============================================================
+
+const { computePreliminaryFeasibility } = require("../feasibility/feasibilityEngine");
+
+// Health check for feasibility subsystem
+// GET /api/feasibility/health
+app.get("/api/feasibility/health", (req, res) => {
+  res.json({ ok: true, service: "feasibility", status: "running" });
+});
+
+// Main preliminary feasibility route
+// POST /api/feasibility/preliminary
+app.post("/api/feasibility/preliminary", (req, res) => {
+  try {
+    const input = req.body || {};
+    const result = computePreliminaryFeasibility(input);
+
+    if (!result.ok) {
+      return res.status(400).json(result);
+    }
+
+    return res.status(200).json(result);
+  } catch (err) {
+    console.error("Feasibility API error:", err);
+    return res.status(500).json({
+      ok: false,
+      error: "Internal server error while computing feasibility.",
+    });
+  }
+});
+
+// Debug middleware: log all incoming requests (TEMPORARY)
+app.use((req, _res, next) => {
+  console.log("[REQ]", req.method, req.url);
+  next();
+});
