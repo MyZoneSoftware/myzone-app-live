@@ -1,6 +1,6 @@
 // FeasibilityModal.jsx
-// A standalone modal to run preliminary feasibility for a selected parcel.
-// It does NOT wire itself into App.jsx yet — that will be a separate, safe step.
+// Modal to run preliminary feasibility for a selected parcel.
+// Includes a simple "Print / Save as PDF" button that uses the browser's print dialog.
 
 import React, { useState } from "react";
 import { runPreliminaryFeasibility } from "../services/feasibilityService";
@@ -20,6 +20,11 @@ export default function FeasibilityModal({ open, onClose, parcel }) {
     parcel?.zoning || parcel?.ZONING_DESC || parcel?.zoningDistrict || "—";
   const fluLabel =
     parcel?.flu || parcel?.fluCategory || parcel?.FLU || parcel?.FLU_DESC || "—";
+
+  function handlePrint() {
+    // Browser print dialog – user can choose "Save as PDF"
+    window.print();
+  }
 
   async function handleRunFeasibility(e) {
     e.preventDefault();
@@ -58,257 +63,636 @@ export default function FeasibilityModal({ open, onClose, parcel }) {
   }
 
   return (
-    <div className="fixed inset-0 bg-black/40 z-50 flex justify-center items-center p-4">
-      <div className="bg-white rounded-lg shadow-lg max-w-3xl w-full p-4 md:p-6 overflow-y-auto max-h-[90vh]">
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        backgroundColor: "rgba(15,23,42,0.35)",
+        display: "flex",
+        justifyContent: "center",
+        alignItems: "center",
+        padding: 12,
+        zIndex: 9999, // ⬅️ make sure we sit ABOVE the Leaflet map panes
+      }}
+    >
+      <div
+        style={{
+          backgroundColor: "#ffffff",
+          borderRadius: 18,
+          padding: "16px 16px 14px",
+          width: "100%",
+          maxWidth: 900,
+          maxHeight: "90vh",
+          display: "flex",
+          flexDirection: "column",
+          boxShadow: "0 24px 60px rgba(15,23,42,0.3)",
+          overflow: "hidden",
+        }}
+      >
         {/* Header */}
-        <div className="flex justify-between items-start gap-4 border-b pb-3 mb-4">
+        <div
+          style={{
+            display: "flex",
+            alignItems: "flex-start",
+            justifyContent: "space-between",
+            gap: 12,
+            borderBottom: "1px solid #e5e7eb",
+            paddingBottom: 8,
+            marginBottom: 10,
+          }}
+        >
           <div>
-            <h2 className="text-lg md:text-xl font-semibold">
+            <div
+              style={{
+                fontSize: 15,
+                fontWeight: 600,
+                color: "#111827",
+                letterSpacing: "-0.01em",
+              }}
+            >
               Preliminary Feasibility
-            </h2>
-            <p className="text-xs text-gray-500 mt-1">
+            </div>
+            <div
+              style={{
+                fontSize: 11,
+                color: "#6b7280",
+                marginTop: 2,
+                maxWidth: 420,
+              }}
+            >
               High-level, advisory estimate based on generalized assumptions. Always
-              verify with detailed site planning, zoning, and engineering.
-            </p>
+              confirm with detailed site planning, zoning review, and engineering.
+            </div>
           </div>
-          <button
-            onClick={onClose}
-            className="border rounded-full px-3 py-1 text-xs hover:bg-gray-100"
+
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+            }}
           >
-            Close
-          </button>
+            <button
+              type="button"
+              onClick={handlePrint}
+              style={{
+                borderRadius: 999,
+                border: "1px solid #e5e7eb",
+                padding: "5px 10px",
+                fontSize: 11,
+                backgroundColor: "#f9fafb",
+                cursor: "pointer",
+              }}
+            >
+              Print / Save as PDF
+            </button>
+            <button
+              onClick={onClose}
+              style={{
+                borderRadius: 999,
+                border: "1px solid #e5e7eb",
+                padding: "5px 10px",
+                fontSize: 11,
+                backgroundColor: "#ffffff",
+                cursor: "pointer",
+              }}
+            >
+              Close
+            </button>
+          </div>
         </div>
 
         {/* Parcel context */}
-        <div className="mb-4 text-xs text-gray-700 space-y-1">
-          {parcel ? (
-            <>
-              <p>
-                <span className="font-semibold">Jurisdiction:</span>{" "}
-                {parcel.jurisdiction || "—"}
-              </p>
-              <p>
-                <span className="font-semibold">Zoning District:</span>{" "}
-                {zoningLabel}
-              </p>
-              <p>
-                <span className="font-semibold">Future Land Use:</span>{" "}
-                {fluLabel}
-              </p>
-            </>
-          ) : (
-            <p className="text-gray-500">
-              No parcel selected. Select a parcel on the map first.
-            </p>
-          )}
+        <div
+          style={{
+            display: "flex",
+            flexWrap: "wrap",
+            gap: 12,
+            fontSize: 11,
+            color: "#4b5563",
+            marginBottom: 10,
+          }}
+        >
+          <div>
+            <span style={{ textTransform: "uppercase", color: "#9ca3af" }}>
+              Parcel
+            </span>
+            <div style={{ fontSize: 12, color: "#111827" }}>
+              {parcel?.address || "—"}
+            </div>
+          </div>
+          <div>
+            <span style={{ textTransform: "uppercase", color: "#9ca3af" }}>
+              Parcel ID
+            </span>
+            <div style={{ fontSize: 12, color: "#111827" }}>
+              {parcel?.id || "—"}
+            </div>
+          </div>
+          <div>
+            <span style={{ textTransform: "uppercase", color: "#9ca3af" }}>
+              Jurisdiction
+            </span>
+            <div style={{ fontSize: 12, color: "#111827" }}>
+              {parcel?.jurisdiction || "—"}
+            </div>
+          </div>
+          <div>
+            <span style={{ textTransform: "uppercase", color: "#9ca3af" }}>
+              Zoning
+            </span>
+            <div style={{ fontSize: 12, color: "#111827" }}>{zoningLabel}</div>
+          </div>
+          <div>
+            <span style={{ textTransform: "uppercase", color: "#9ca3af" }}>
+              Future Land Use
+            </span>
+            <div style={{ fontSize: 12, color: "#111827" }}>{fluLabel}</div>
+          </div>
         </div>
 
-        {/* Form + Result layout */}
-        <div className="grid md:grid-cols-2 gap-4">
-          {/* LEFT: Input form */}
-          <div className="border rounded-md bg-gray-50 p-3 space-y-2 text-xs md:text-sm">
-            <h3 className="font-semibold text-sm mb-1 border-b pb-1">
-              Input &amp; Assumptions
-            </h3>
+        {/* Main layout */}
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "minmax(0, 1.2fr) minmax(0, 1.6fr)",
+            gap: 12,
+            alignItems: "stretch",
+            flex: 1,
+            minHeight: 0,
+          }}
+        >
+          {/* LEFT: Inputs */}
+          <div
+            style={{
+              borderRadius: 12,
+              border: "1px solid #e5e7eb",
+              backgroundColor: "#f9fafb",
+              padding: 10,
+              fontSize: 12,
+              display: "flex",
+              flexDirection: "column",
+              gap: 8,
+            }}
+          >
+            <div
+              style={{
+                fontSize: 12,
+                fontWeight: 600,
+                color: "#111827",
+                marginBottom: 2,
+              }}
+            >
+              Inputs &amp; Assumptions
+            </div>
 
-            <form onSubmit={handleRunFeasibility} className="space-y-3">
-              {/* Use type */}
+            <form
+              onSubmit={handleRunFeasibility}
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: 8,
+              }}
+            >
               <div>
-                <label className="block text-xs font-medium mb-1">
-                  Primary Use Type
+                <label
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 500,
+                    color: "#374151",
+                    marginBottom: 2,
+                    display: "block",
+                  }}
+                >
+                  Primary use type
                 </label>
                 <select
-                  className="w-full border rounded px-2 py-1 text-sm"
                   value={useType}
                   onChange={(e) => setUseType(e.target.value)}
+                  style={{
+                    width: "100%",
+                    borderRadius: 8,
+                    border: "1px solid #d1d5db",
+                    padding: "6px 8px",
+                    fontSize: 12,
+                    backgroundColor: "#ffffff",
+                  }}
                 >
-                  <option value="single-family">Single-Family Residential</option>
-                  <option value="multifamily">Multifamily Residential</option>
-                  <option value="commercial">Commercial / Non-Residential</option>
+                  <option value="single-family">Single-family residential</option>
+                  <option value="multifamily">Multifamily residential</option>
+                  <option value="commercial">Commercial / non-residential</option>
                 </select>
               </div>
 
-              {/* Optional assumptions */}
-              <div className="space-y-2">
-                <p className="text-[11px] text-gray-600">
-                  Optional overrides (leave blank to use standard zoning defaults).
-                </p>
-
-                <div>
-                  <label className="block text-xs font-medium mb-1">
-                    Max Lot Coverage (0–1)
-                  </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    max="1"
-                    className="w-full border rounded px-2 py-1 text-sm"
-                    value={customLotCoverage}
-                    onChange={(e) => setCustomLotCoverage(e.target.value)}
-                    placeholder="e.g., 0.35"
-                  />
+              <div>
+                <div
+                  style={{
+                    fontSize: 11,
+                    color: "#6b7280",
+                    marginBottom: 4,
+                  }}
+                >
+                  Optional overrides (leave blank to use standard zoning defaults)
                 </div>
 
-                <div>
-                  <label className="block text-xs font-medium mb-1">
-                    Max FAR (Floor Area Ratio)
-                  </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    className="w-full border rounded px-2 py-1 text-sm"
-                    value={customFAR}
-                    onChange={(e) => setCustomFAR(e.target.value)}
-                    placeholder="e.g., 0.5"
-                  />
-                </div>
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))",
+                    gap: 6,
+                  }}
+                >
+                  <div>
+                    <label
+                      style={{
+                        fontSize: 11,
+                        fontWeight: 500,
+                        color: "#374151",
+                        marginBottom: 2,
+                        display: "block",
+                      }}
+                    >
+                      Max lot coverage (0–1)
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      max="1"
+                      value={customLotCoverage}
+                      onChange={(e) => setCustomLotCoverage(e.target.value)}
+                      placeholder="e.g. 0.35"
+                      style={{
+                        width: "100%",
+                        borderRadius: 8,
+                        border: "1px solid #d1d5db",
+                        padding: "6px 8px",
+                        fontSize: 12,
+                      }}
+                    />
+                  </div>
 
-                <div>
-                  <label className="block text-xs font-medium mb-1">
-                    Average Unit Size (sq ft)
-                  </label>
-                  <input
-                    type="number"
-                    step="1"
-                    min="0"
-                    className="w-full border rounded px-2 py-1 text-sm"
-                    value={customAvgUnitSize}
-                    onChange={(e) => setCustomAvgUnitSize(e.target.value)}
-                    placeholder="e.g., 2000 (for single-family)"
-                  />
+                  <div>
+                    <label
+                      style={{
+                        fontSize: 11,
+                        fontWeight: 500,
+                        color: "#374151",
+                        marginBottom: 2,
+                        display: "block",
+                      }}
+                    >
+                      Max FAR
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={customFAR}
+                      onChange={(e) => setCustomFAR(e.target.value)}
+                      placeholder="e.g. 0.5"
+                      style={{
+                        width: "100%",
+                        borderRadius: 8,
+                        border: "1px solid #d1d5db",
+                        padding: "6px 8px",
+                        fontSize: 12,
+                      }}
+                    />
+                  </div>
+
+                  <div>
+                    <label
+                      style={{
+                        fontSize: 11,
+                        fontWeight: 500,
+                        color: "#374151",
+                        marginBottom: 2,
+                        display: "block",
+                      }}
+                    >
+                      Avg unit size (sq ft)
+                    </label>
+                    <input
+                      type="number"
+                      step="1"
+                      min="0"
+                      value={customAvgUnitSize}
+                      onChange={(e) => setCustomAvgUnitSize(e.target.value)}
+                      placeholder="e.g. 2000"
+                      style={{
+                        width: "100%",
+                        borderRadius: 8,
+                        border: "1px solid #d1d5db",
+                        padding: "6px 8px",
+                        fontSize: 12,
+                      }}
+                    />
+                  </div>
                 </div>
               </div>
 
               {error && (
-                <p className="text-[11px] text-red-600 bg-red-50 border border-red-100 rounded px-2 py-1">
+                <div
+                  style={{
+                    fontSize: 11,
+                    color: "#b91c1c",
+                    backgroundColor: "#fef2f2",
+                    borderRadius: 8,
+                    border: "1px solid #fecaca",
+                    padding: "6px 8px",
+                  }}
+                >
                   {error}
-                </p>
+                </div>
               )}
 
               <button
                 type="submit"
                 disabled={loading || !parcel}
-                className="border rounded px-3 py-1.5 text-sm bg-white hover:bg-gray-100 disabled:opacity-60"
+                style={{
+                  alignSelf: "flex-start",
+                  borderRadius: 999,
+                  border: "none",
+                  padding: "7px 14px",
+                  fontSize: 12,
+                  fontWeight: 500,
+                  backgroundColor: "#0f172a",
+                  color: "#ffffff",
+                  cursor: loading || !parcel ? "default" : "pointer",
+                  opacity: loading || !parcel ? 0.6 : 1,
+                }}
               >
-                {loading ? "Calculating…" : "Run Feasibility"}
+                {loading ? "Calculating…" : "Run feasibility"}
               </button>
 
-              <p className="text-[10px] text-gray-500">
-                This tool does not account for access, stormwater, open space, or
-                detailed engineering. Treat results as an initial capacity envelope.
-              </p>
+              <div
+                style={{
+                  fontSize: 10,
+                  color: "#6b7280",
+                  marginTop: 2,
+                }}
+              >
+                This tool does not account for access, stormwater, open space, utilities,
+                or detailed engineering. Treat all results as a planning-level screen.
+              </div>
             </form>
           </div>
 
           {/* RIGHT: Results */}
-          <div className="border rounded-md bg-white p-3 text-xs md:text-sm">
-            <h3 className="font-semibold text-sm mb-1 border-b pb-1">
+          <div
+            style={{
+              borderRadius: 12,
+              border: "1px solid #e5e7eb",
+              backgroundColor: "#ffffff",
+              padding: 10,
+              fontSize: 12,
+              display: "flex",
+              flexDirection: "column",
+              minHeight: 0,
+            }}
+          >
+            <div
+              style={{
+                fontSize: 12,
+                fontWeight: 600,
+                color: "#111827",
+                marginBottom: 6,
+              }}
+            >
               Capacity Summary
-            </h3>
+            </div>
 
-            {!result && !error && (
-              <p className="text-[11px] text-gray-500 mt-2">
-                Run feasibility to see an estimated maximum yield based on site area,
-                zoning, and your assumptions.
-              </p>
+            {!result && !error && !loading && (
+              <div
+                style={{
+                  fontSize: 11,
+                  color: "#6b7280",
+                  lineHeight: 1.5,
+                }}
+              >
+                Run feasibility to see an estimated maximum yield based on parcel area,
+                zoning, and your assumptions. Results are rounded and represent a
+                capacity envelope, not a guaranteed approval.
+              </div>
+            )}
+
+            {loading && (
+              <div
+                style={{
+                  fontSize: 11,
+                  color: "#6b7280",
+                }}
+              >
+                Calculating capacity envelope for the selected parcel…
+              </div>
             )}
 
             {result && result.ok && (
-              <div className="space-y-3 mt-2">
-                {/* Core capacity numbers */}
-                <div className="grid grid-cols-2 gap-3 text-xs">
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 10,
+                  marginTop: 4,
+                  overflowY: "auto",
+                }}
+              >
+                {/* Key figures */}
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+                    gap: 8,
+                  }}
+                >
                   {typeof result.capacity?.maxUnits === "number" && (
-                    <div className="border rounded-md p-2 bg-gray-50">
-                      <p className="text-[11px] font-semibold mb-1">
-                        Estimated Max Units
-                      </p>
-                      <p className="text-lg font-bold">
+                    <div
+                      style={{
+                        borderRadius: 10,
+                        border: "1px solid #e5e7eb",
+                        backgroundColor: "#f9fafb",
+                        padding: "8px 10px",
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontSize: 11,
+                          fontWeight: 600,
+                          color: "#111827",
+                          marginBottom: 2,
+                        }}
+                      >
+                        Estimated max units
+                      </div>
+                      <div
+                        style={{
+                          fontSize: 20,
+                          fontWeight: 700,
+                          color: "#111827",
+                        }}
+                      >
                         {result.capacity.maxUnits}
-                      </p>
-                      <p className="text-[10px] text-gray-500 mt-1">
-                        Lower of min lot size vs. coverage-based yield.
-                      </p>
+                      </div>
+                      <div
+                        style={{
+                          fontSize: 10,
+                          color: "#6b7280",
+                          marginTop: 2,
+                        }}
+                      >
+                        Lower of minimum lot size–based yield vs. coverage-based yield.
+                      </div>
                     </div>
                   )}
 
                   {typeof result.capacity?.maxBuildingAreaSqFt === "number" && (
-                    <div className="border rounded-md p-2 bg-gray-50">
-                      <p className="text-[11px] font-semibold mb-1">
-                        Estimated Max Building Area
-                      </p>
-                      <p className="text-lg font-bold">
-                        {Math.round(result.capacity.maxBuildingAreaSqFt).toLocaleString()}{" "}
+                    <div
+                      style={{
+                        borderRadius: 10,
+                        border: "1px solid #e5e7eb",
+                        backgroundColor: "#f9fafb",
+                        padding: "8px 10px",
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontSize: 11,
+                          fontWeight: 600,
+                          color: "#111827",
+                          marginBottom: 2,
+                        }}
+                      >
+                        Max building area
+                      </div>
+                      <div
+                        style={{
+                          fontSize: 16,
+                          fontWeight: 700,
+                          color: "#111827",
+                        }}
+                      >
+                        {Math.round(
+                          result.capacity.maxBuildingAreaSqFt,
+                        ).toLocaleString()}{" "}
                         sq ft
-                      </p>
-                      <p className="text-[10px] text-gray-500 mt-1">
-                        Based on coverage, FAR, and use assumptions.
-                      </p>
+                      </div>
+                      <div
+                        style={{
+                          fontSize: 10,
+                          color: "#6b7280",
+                          marginTop: 2,
+                        }}
+                      >
+                        Based on lot coverage, FAR, and generalized building assumptions.
+                      </div>
                     </div>
                   )}
 
                   {typeof result.capacity?.parkingSpacesRequired === "number" && (
-                    <div className="border rounded-md p-2 bg-gray-50 col-span-2">
-                      <p className="text-[11px] font-semibold mb-1">
-                        Estimated Parking Demand
-                      </p>
-                      <p className="text-lg font-bold">
-                        {result.capacity.parkingSpacesRequired.toLocaleString()}{" "}
-                        spaces
-                      </p>
-                      <p className="text-[10px] text-gray-500 mt-1">
-                        Based on generic ratios for {result.inputs.useType} use.
-                      </p>
+                    <div
+                      style={{
+                        borderRadius: 10,
+                        border: "1px solid #e5e7eb",
+                        backgroundColor: "#f9fafb",
+                        padding: "8px 10px",
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontSize: 11,
+                          fontWeight: 600,
+                          color: "#111827",
+                          marginBottom: 2,
+                        }}
+                      >
+                        Estimated parking demand
+                      </div>
+                      <div
+                        style={{
+                          fontSize: 16,
+                          fontWeight: 700,
+                          color: "#111827",
+                        }}
+                      >
+                        {result.capacity.parkingSpacesRequired.toLocaleString()} spaces
+                      </div>
+                      <div
+                        style={{
+                          fontSize: 10,
+                          color: "#6b7280",
+                          marginTop: 2,
+                        }}
+                      >
+                        Generic parking ratios for {result.inputs.useType} use. Always
+                        confirm with local code.
+                      </div>
                     </div>
                   )}
                 </div>
 
-                {/* Constraints explanation */}
+                {/* Constraints */}
                 <div>
-                  <p className="font-semibold text-xs mb-1">Key Constraints</p>
-                  <ul className="list-disc pl-4 space-y-0.5 text-[11px] text-gray-700">
+                  <div
+                    style={{
+                      fontSize: 11,
+                      fontWeight: 600,
+                      color: "#111827",
+                      marginBottom: 4,
+                    }}
+                  >
+                    Key constraints
+                  </div>
+                  <ul
+                    style={{
+                      margin: 0,
+                      paddingLeft: 18,
+                      fontSize: 11,
+                      color: "#4b5563",
+                      lineHeight: 1.5,
+                    }}
+                  >
                     {result.constraints?.byMinLotSize && (
                       <li>
-                        Min lot size: up to{" "}
+                        Minimum lot size allows up to{" "}
                         <strong>
-                          {result.constraints.byMinLotSize.maxUnits} lots/units
+                          {result.constraints.byMinLotSize.maxUnits} lots / units
                         </strong>{" "}
-                        based solely on minimum lot size.
+                        if only minimum lot size is applied.
                       </li>
                     )}
                     {result.constraints?.byCoverage && (
                       <li>
-                        Lot coverage: up to{" "}
+                        Coverage + average unit size supports approximately{" "}
                         <strong>
                           {result.constraints.byCoverage.maxUnits} units
                         </strong>{" "}
-                        based on coverage and average unit size.
+                        at the assumed unit size.
                       </li>
                     )}
                     {result.constraints?.byFAR && (
                       <li>
-                        FAR limit: max building area of{" "}
+                        FAR limit yields a total building area of{" "}
                         <strong>
                           {Math.round(
-                            result.constraints.byFAR.maxBuildingAreaSqFt
+                            result.constraints.byFAR.maxBuildingAreaSqFt,
                           ).toLocaleString()}{" "}
                           sq ft
                         </strong>{" "}
-                        based on FAR.
+                        if fully utilized.
                       </li>
                     )}
                     {result.constraints?.byCoverageBuilding && (
                       <li>
-                        Coverage-only envelope: approx{" "}
+                        Coverage-only envelope (ignoring FAR) yields about{" "}
                         <strong>
                           {Math.round(
                             result.constraints.byCoverageBuilding
-                              .maxBuildingAreaSqFt
+                              .maxBuildingAreaSqFt,
                           ).toLocaleString()}{" "}
                           sq ft
                         </strong>{" "}
-                        based on lot coverage alone.
+                        footprint area.
                       </li>
                     )}
                   </ul>
@@ -317,14 +701,51 @@ export default function FeasibilityModal({ open, onClose, parcel }) {
                 {/* Notes */}
                 {Array.isArray(result.notes) && result.notes.length > 0 && (
                   <div>
-                    <p className="font-semibold text-xs mb-1">Notes &amp; Caveats</p>
-                    <ul className="list-disc pl-4 space-y-0.5 text-[11px] text-gray-600">
+                    <div
+                      style={{
+                        fontSize: 11,
+                        fontWeight: 600,
+                        color: "#111827",
+                        marginBottom: 4,
+                      }}
+                    >
+                      Notes &amp; caveats
+                    </div>
+                    <ul
+                      style={{
+                        margin: 0,
+                        paddingLeft: 18,
+                        fontSize: 11,
+                        color: "#6b7280",
+                        lineHeight: 1.5,
+                      }}
+                    >
                       {result.notes.map((note, idx) => (
                         <li key={idx}>{note}</li>
                       ))}
                     </ul>
                   </div>
                 )}
+
+                {/* Light watermark / footer */}
+                <div
+                  style={{
+                    marginTop: 4,
+                    paddingTop: 4,
+                    borderTop: "1px dashed #e5e7eb",
+                    fontSize: 9,
+                    color: "#9ca3af",
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                  }}
+                >
+                  <span>
+                    MyZ🌎NE – Planning support tool (beta). Not an official zoning or
+                    development approval.
+                  </span>
+                  <span>© MyZone</span>
+                </div>
               </div>
             )}
           </div>
