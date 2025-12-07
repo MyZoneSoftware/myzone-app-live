@@ -168,10 +168,15 @@ function InteractiveMap({
           pathOptions={{ color: "#f97316", weight: 1 }}
         />
       )}
+        <NoticeReportModal
+          onClose={() => setShowNoticeReport(false)}
+          selectedParcel={selectedParcel}
+          bufferReport={bufferReport}
+        />
+      )}
     </>
   );
 }
-
 function MapWrapper(props) {
   return (
     <MapContainer
@@ -1021,6 +1026,403 @@ function SmartCodeModal({ onClose, context }) {
     </div>
   );
 }
+function NoticeReportModal({ open, onClose, selectedParcel, bufferReport }) {
+  if (
+    !open ||
+    !bufferReport ||
+    !Array.isArray(bufferReport.parcels) ||
+    bufferReport.parcels.length === 0
+  ) {
+    return null;
+  }
+
+  const subject = selectedParcel || {};
+  const neighbors = bufferReport.parcels;
+  const radiusFeet = bufferReport.radiusFeet;
+  const center = bufferReport.center;
+
+  function handlePrint() {
+    window.print();
+  }
+
+  const formatMailing = (p) => {
+    const owner =
+      p.owner || p.ownerName || p.OWNER || p.OWNER_NAME || "";
+    const mail1 =
+      p.mailAddress1 ||
+      p.mailingAddress1 ||
+      p.MAILADDR1 ||
+      p.MAILADD1 ||
+      "";
+    const mail2 =
+      p.mailAddress2 ||
+      p.mailingAddress2 ||
+      p.MAILADDR2 ||
+      p.MAILADD2 ||
+      "";
+    const mailCity =
+      p.mailCity || p.mailingCity || p.MAILCITY || "";
+    const mailState =
+      p.mailState || p.mailingState || p.MAILSTATE || "";
+    const mailZip =
+      p.mailZip || p.mailingZip || p.MAILZIP || p.ZIP || "";
+
+    const line1 = mail1 || mail2 ? [mail1, mail2].filter(Boolean).join(" ") : "";
+    const cityLine =
+      mailCity || mailState || mailZip
+        ? [mailCity, mailState, mailZip].filter(Boolean).join(", ")
+        : "";
+
+    return {
+      owner,
+      line1,
+      cityLine,
+    };
+  };
+
+  return (
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        backgroundColor: "rgba(15,23,42,0.35)",
+        display: "flex",
+        justifyContent: "center",
+        alignItems: "center",
+        padding: 12,
+        zIndex: 9999,
+      }}
+    >
+      <div
+        style={{
+          backgroundColor: "#ffffff",
+          borderRadius: 18,
+          padding: "16px 16px 14px",
+          width: "100%",
+          maxWidth: 900,
+          maxHeight: "90vh",
+          display: "flex",
+          flexDirection: "column",
+          boxShadow: "0 24px 60px rgba(15,23,42,0.3)",
+          overflow: "hidden",
+        }}
+      >
+        {/* Header */}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "flex-start",
+            justifyContent: "space-between",
+            gap: 12,
+            borderBottom: "1px solid #e5e7eb",
+            paddingBottom: 8,
+            marginBottom: 10,
+          }}
+        >
+          <div>
+            <div
+              style={{
+                fontSize: 15,
+                fontWeight: 600,
+                color: "#111827",
+                letterSpacing: "-0.01em",
+              }}
+            >
+              Notice report (beta)
+            </div>
+            <div
+              style={{
+                fontSize: 11,
+                color: "#6b7280",
+                marginTop: 2,
+                maxWidth: 480,
+              }}
+            >
+              Neighbor list generated from the selected radius around the subject parcel.
+              Use this as a starting point for public notice mailings; always verify with
+              your adopted notice requirements.
+            </div>
+          </div>
+
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+            }}
+          >
+            <button
+              type="button"
+              onClick={handlePrint}
+              style={{
+                borderRadius: 999,
+                border: "1px solid #e5e7eb",
+                padding: "5px 10px",
+                fontSize: 11,
+                backgroundColor: "#f9fafb",
+                cursor: "pointer",
+              }}
+            >
+              Print / Save as PDF
+            </button>
+            <button
+              onClick={onClose}
+              style={{
+                borderRadius: 999,
+                border: "1px solid #e5e7eb",
+                padding: "5px 10px",
+                fontSize: 11,
+                backgroundColor: "#ffffff",
+                cursor: "pointer",
+              }}
+            >
+              Close
+            </button>
+          </div>
+        </div>
+
+        {/* Subject parcel + buffer summary */}
+        <div
+          style={{
+            display: "flex",
+            flexWrap: "wrap",
+            gap: 12,
+            fontSize: 11,
+            color: "#4b5563",
+            marginBottom: 10,
+          }}
+        >
+          <div>
+            <span style={{ textTransform: "uppercase", color: "#9ca3af" }}>
+              Subject Parcel
+            </span>
+            <div style={{ fontSize: 12, color: "#111827" }}>
+              {subject.address || "—"}
+            </div>
+          </div>
+          <div>
+            <span style={{ textTransform: "uppercase", color: "#9ca3af" }}>
+              Subject PCN
+            </span>
+            <div style={{ fontSize: 12, color: "#111827" }}>
+              {subject.id || "—"}
+            </div>
+          </div>
+          <div>
+            <span style={{ textTransform: "uppercase", color: "#9ca3af" }}>
+              Jurisdiction
+            </span>
+            <div style={{ fontSize: 12, color: "#111827" }}>
+              {subject.jurisdiction || "—"}
+            </div>
+          </div>
+          <div>
+            <span style={{ textTransform: "uppercase", color: "#9ca3af" }}>
+              Radius
+            </span>
+            <div style={{ fontSize: 12, color: "#111827" }}>
+              {radiusFeet} ft
+            </div>
+          </div>
+          <div>
+            <span style={{ textTransform: "uppercase", color: "#9ca3af" }}>
+              Center
+            </span>
+            <div style={{ fontSize: 12, color: "#111827" }}>
+              {center
+                ? `${center.lat.toFixed(5)}, ${center.lng.toFixed(5)}`
+                : "—"}
+            </div>
+          </div>
+          <div>
+            <span style={{ textTransform: "uppercase", color: "#9ca3af" }}>
+              Parcels in buffer
+            </span>
+            <div style={{ fontSize: 12, color: "#111827" }}>
+              {neighbors.length}
+            </div>
+          </div>
+        </div>
+
+        {/* Neighbor list table */}
+        <div
+          style={{
+            flex: 1,
+            borderRadius: 12,
+            border: "1px solid #e5e7eb",
+            backgroundColor: "#ffffff",
+            padding: 10,
+            fontSize: 12,
+            overflowY: "auto",
+          }}
+        >
+          <div
+            style={{
+              fontSize: 12,
+              fontWeight: 600,
+              color: "#111827",
+              marginBottom: 6,
+            }}
+          >
+            Neighbor parcels
+          </div>
+
+          <table
+            style={{
+              width: "100%",
+              borderCollapse: "collapse",
+              fontSize: 11,
+            }}
+          >
+            <thead>
+              <tr>
+                <th
+                  style={{
+                    textAlign: "left",
+                    padding: "4px 4px",
+                    borderBottom: "1px solid #e5e7eb",
+                  }}
+                >
+                  Owner
+                </th>
+                <th
+                  style={{
+                    textAlign: "left",
+                    padding: "4px 4px",
+                    borderBottom: "1px solid #e5e7eb",
+                  }}
+                >
+                  Mailing address
+                </th>
+                <th
+                  style={{
+                    textAlign: "left",
+                    padding: "4px 4px",
+                    borderBottom: "1px solid #e5e7eb",
+                  }}
+                >
+                  Parcel ID
+                </th>
+                <th
+                  style={{
+                    textAlign: "left",
+                    padding: "4px 4px",
+                    borderBottom: "1px solid #e5e7eb",
+                  }}
+                >
+                  Site address
+                </th>
+                <th
+                  style={{
+                    textAlign: "left",
+                    padding: "4px 4px",
+                    borderBottom: "1px solid #e5e7eb",
+                  }}
+                >
+                  Jurisdiction
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {neighbors.map((p) => {
+                const mail = formatMailing(p);
+                return (
+                  <tr key={p.id || p.address}>
+                    <td
+                      style={{
+                        padding: "4px 4px",
+                        borderBottom: "1px solid #f3f4f6",
+                        verticalAlign: "top",
+                      }}
+                    >
+                      {mail.owner || "—"}
+                    </td>
+                    <td
+                      style={{
+                        padding: "4px 4px",
+                        borderBottom: "1px solid #f3f4f6",
+                        verticalAlign: "top",
+                      }}
+                    >
+                      <div>{mail.line1 || "—"}</div>
+                      {mail.cityLine && (
+                        <div
+                          style={{
+                            color: "#6b7280",
+                          }}
+                        >
+                          {mail.cityLine}
+                        </div>
+                      )}
+                    </td>
+                    <td
+                      style={{
+                        padding: "4px 4px",
+                        borderBottom: "1px solid #f3f4f6",
+                        verticalAlign: "top",
+                      }}
+                    >
+                      {p.id || "—"}
+                    </td>
+                    <td
+                      style={{
+                        padding: "4px 4px",
+                        borderBottom: "1px solid #f3f4f6",
+                        verticalAlign: "top",
+                      }}
+                    >
+                      {p.address || "—"}
+                    </td>
+                    <td
+                      style={{
+                        padding: "4px 4px",
+                        borderBottom: "1px solid #f3f4f6",
+                        verticalAlign: "top",
+                      }}
+                    >
+                      {p.jurisdiction || "—"}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+
+          <div
+            style={{
+              marginTop: 6,
+              paddingTop: 6,
+              borderTop: "1px dashed #e5e7eb",
+              fontSize: 9,
+              color: "#9ca3af",
+            }}
+          >
+            This list is generated for planning support and public notice preparation.
+            Always verify parcel ownership, mailing addresses, and noticing radius
+            requirements with the applicable jurisdiction before sending notices.
+          </div>
+        </div>
+
+        {/* Footer / watermark */}
+        <div
+          style={{
+            marginTop: 6,
+            paddingTop: 4,
+            borderTop: "1px solid #f3f4f6",
+            fontSize: 9,
+            color: "#9ca3af",
+            display: "flex",
+            justifyContent: "space-between",
+          }}
+        >
+          <span>MyZ🌎NE – Notice mailers support (beta).</span>
+          <span>© MyZone</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function JurisdictionModal({ selectedRegion, onSelect, onClose }) {
   const [query, setQuery] = useState("");
 
@@ -1186,6 +1588,7 @@ export default function App() {
   const [showLogin, setShowLogin] = useState(false);
   const [showSmartCodeModal, setShowSmartCodeModal] = useState(false);
   const [showJurisdictionModal, setShowJurisdictionModal] = useState(false);
+  const [showNoticeReport, setShowNoticeReport] = useState(false);
   const [showFeasibilityModal, setShowFeasibilityModal] = useState(false);
 
   const [mapCenter, setMapCenter] = useState(DEFAULT_CENTER);
@@ -1347,10 +1750,51 @@ export default function App() {
     ]);
 
     rows.push([]);
-    rows.push(["Neighbor Parcel ID", "Neighbor Address", "Jurisdiction"]);
+    rows.push([
+      "Neighbor Parcel ID",
+      "Neighbor Address",
+      "Owner",
+      "Mailing Address 1",
+      "Mailing Address 2",
+      "Mailing City",
+      "Mailing State",
+      "Mailing ZIP",
+      "Jurisdiction",
+    ]);
 
     bufferReport.parcels.forEach((p) => {
-      rows.push([p.id || "", p.address || "", p.jurisdiction || ""]);
+      const owner =
+        p.owner || p.ownerName || p.OWNER || p.OWNER_NAME || "";
+      const mail1 =
+        p.mailAddress1 ||
+        p.mailingAddress1 ||
+        p.MAILADDR1 ||
+        p.MAILADD1 ||
+        "";
+      const mail2 =
+        p.mailAddress2 ||
+        p.mailingAddress2 ||
+        p.MAILADDR2 ||
+        p.MAILADD2 ||
+        "";
+      const mailCity =
+        p.mailCity || p.mailingCity || p.MAILCITY || "";
+      const mailState =
+        p.mailState || p.mailingState || p.MAILSTATE || "";
+      const mailZip =
+        p.mailZip || p.mailingZip || p.MAILZIP || p.ZIP || "";
+
+      rows.push([
+        p.id || "",
+        p.address || "",
+        owner,
+        mail1,
+        mail2,
+        mailCity,
+        mailState,
+        mailZip,
+        p.jurisdiction || "",
+      ]);
     });
 
     const csvContent = rows
@@ -2357,6 +2801,40 @@ export default function App() {
                       }}
                     >
                       Export CSV (beta)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowNoticeReport(true)}
+                      disabled={
+                        bufferLoading ||
+                        !bufferReport ||
+                        !Array.isArray(bufferReport.parcels) ||
+                        bufferReport.parcels.length === 0
+                      }
+                      style={{
+                        padding: "6px 12px",
+                        borderRadius: 999,
+                        border: "1px solid #d1d5db",
+                        fontSize: 12,
+                        backgroundColor: "#ffffff",
+                        color: "#111827",
+                        cursor:
+                          bufferLoading ||
+                          !bufferReport ||
+                          !Array.isArray(bufferReport.parcels) ||
+                          bufferReport.parcels.length === 0
+                            ? "default"
+                            : "pointer",
+                        opacity:
+                          bufferLoading ||
+                          !bufferReport ||
+                          !Array.isArray(bufferReport.parcels) ||
+                          bufferReport.parcels.length === 0
+                            ? 0.5
+                            : 1,
+                      }}
+                    >
+                      Notice report (PDF)
                     </button>
                   </div>
 
