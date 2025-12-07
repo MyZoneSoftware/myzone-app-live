@@ -1318,6 +1318,71 @@ export default function App() {
     }
   };
 
+  const handleExportBufferCsv = () => {
+    if (
+      !bufferReport ||
+      !Array.isArray(bufferReport.parcels) ||
+      bufferReport.parcels.length === 0
+    ) {
+      return;
+    }
+
+    const rows = [];
+
+    // Header for subject parcel
+    rows.push([
+      "Subject Parcel ID",
+      "Subject Address",
+      "Radius (feet)",
+      "Center Lat",
+      "Center Lng",
+    ]);
+
+    rows.push([
+      selectedParcel?.id || "",
+      selectedParcel?.address || "",
+      bufferReport.radiusFeet ?? "",
+      bufferReport.center?.lat ?? "",
+      bufferReport.center?.lng ?? "",
+    ]);
+
+    rows.push([]);
+    rows.push(["Neighbor Parcel ID", "Neighbor Address", "Jurisdiction"]);
+
+    bufferReport.parcels.forEach((p) => {
+      rows.push([p.id || "", p.address || "", p.jurisdiction || ""]);
+    });
+
+    const csvContent = rows
+      .map((row) =>
+        row
+          .map((value) => {
+            const v = value == null ? "" : String(value);
+            if (v.includes('"') || v.includes(",") || v.includes("\n")) {
+              return `"${v.replace(/"/g, '""')}"`;
+            }
+            return v;
+          })
+          .join(","),
+      )
+      .join("\n");
+
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    const pcnSafe = (selectedParcel?.id || "subject-parcel").replace(
+      /[^a-zA-Z0-9_-]/g,
+      "_",
+    );
+    link.download = `myzone_notice_recipients_${pcnSafe}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+
   const bufferCount = useMemo(
     () =>
       bufferReport && Array.isArray(bufferReport.parcels)
@@ -2258,6 +2323,40 @@ export default function App() {
                       }}
                     >
                       {bufferLoading ? "Generating…" : "Generate"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleExportBufferCsv}
+                      disabled={
+                        bufferLoading ||
+                        !bufferReport ||
+                        !Array.isArray(bufferReport.parcels) ||
+                        bufferReport.parcels.length === 0
+                      }
+                      style={{
+                        padding: "6px 12px",
+                        borderRadius: 999,
+                        border: "1px solid #d1d5db",
+                        fontSize: 12,
+                        backgroundColor: "#ffffff",
+                        color: "#374151",
+                        cursor:
+                          bufferLoading ||
+                          !bufferReport ||
+                          !Array.isArray(bufferReport.parcels) ||
+                          bufferReport.parcels.length === 0
+                            ? "default"
+                            : "pointer",
+                        opacity:
+                          bufferLoading ||
+                          !bufferReport ||
+                          !Array.isArray(bufferReport.parcels) ||
+                          bufferReport.parcels.length === 0
+                            ? 0.5
+                            : 1,
+                      }}
+                    >
+                      Export CSV (beta)
                     </button>
                   </div>
 
