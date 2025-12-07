@@ -442,7 +442,7 @@ function SmartCodeModal({ onClose, context }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  // NEW: local profile (Royal Palm Beach RS, etc.)
+  // Local profile (Royal Palm Beach RS, etc.)
   const [profile, setProfile] = useState(null);
   const [profileLoading, setProfileLoading] = useState(false);
   const [profileError, setProfileError] = useState(null);
@@ -513,6 +513,14 @@ function SmartCodeModal({ onClose, context }) {
   const jurisdictionLabel =
     context?.parcel?.jurisdiction || context?.region || "Selected jurisdiction";
 
+  const parcel = context?.parcel || null;
+  const zoningLabel =
+    parcel?.zoning || parcel?.ZONING_DESC || parcel?.zoningDistrict || "—";
+  const fluLabel =
+    parcel?.flu || parcel?.fluCategory || parcel?.FLU || parcel?.FLU_DESC || "—";
+
+  if (!context) return null;
+
   return (
     <div
       style={{
@@ -520,8 +528,9 @@ function SmartCodeModal({ onClose, context }) {
         inset: 0,
         backgroundColor: "rgba(15,23,42,0.35)",
         display: "flex",
-        alignItems: "center",
         justifyContent: "center",
+        alignItems: "center",
+        padding: 12,
         zIndex: 9999,
       }}
     >
@@ -529,291 +538,489 @@ function SmartCodeModal({ onClose, context }) {
         style={{
           backgroundColor: "#ffffff",
           borderRadius: 18,
-          padding: "18px 18px 14px",
+          padding: "16px 16px 14px",
           width: "100%",
-          maxWidth: 520,
-          maxHeight: "80vh",
+          maxWidth: 900,
+          maxHeight: "90vh",
           display: "flex",
           flexDirection: "column",
           boxShadow: "0 24px 60px rgba(15,23,42,0.3)",
+          overflow: "hidden",
         }}
       >
+        {/* Header */}
         <div
           style={{
             display: "flex",
+            alignItems: "flex-start",
             justifyContent: "space-between",
-            alignItems: "center",
-            marginBottom: 8,
+            gap: 12,
+            borderBottom: "1px solid #e5e7eb",
+            paddingBottom: 8,
+            marginBottom: 10,
           }}
         >
           <div>
-            <div style={{ fontSize: 15, fontWeight: 600 }}>Smart code search</div>
-            <div style={{ fontSize: 11, color: "#6b7280", marginTop: 2 }}>
-              Context: {jurisdictionLabel}
+            <div
+              style={{
+                fontSize: 15,
+                fontWeight: 600,
+                color: "#111827",
+                letterSpacing: "-0.01em",
+              }}
+            >
+              Smart code search
             </div>
-          </div>
-          <button
-            onClick={onClose}
-            style={{
-              border: "none",
-              background: "transparent",
-              cursor: "pointer",
-              fontSize: 16,
-              lineHeight: 1,
-            }}
-          >
-            ×
-          </button>
-        </div>
-
-        <p style={{ fontSize: 12, color: "#6b7280", marginBottom: 10 }}>
-          Ask zoning, future land use, or entitlement questions. MyZ🌎NE will use the
-          selected parcel&apos;s zoning + FLU context, local profiles (where available),
-          plus general planning knowledge.
-        </p>
-
-        <textarea
-          placeholder="Example: What are the minimum lot size and setbacks for RS zoning in Royal Palm Beach, FL?"
-          value={question}
-          onChange={(e) => setQuestion(e.target.value)}
-          style={{
-            flexShrink: 0,
-            minHeight: 90,
-            maxHeight: 140,
-            resize: "vertical",
-            padding: "8px 10px",
-            borderRadius: 10,
-            border: "1px solid #d1d5db",
-            fontSize: 13,
-            fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
-            marginBottom: 8,
-          }}
-        />
-
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-            marginBottom: 10,
-            flexWrap: "wrap",
-          }}
-        >
-          <button
-            type="button"
-            onClick={handleAsk}
-            disabled={loading || !question.trim()}
-            style={{
-              alignSelf: "flex-start",
-              borderRadius: 999,
-              border: "none",
-              padding: "6px 12px",
-              fontSize: 12,
-              backgroundColor: BRAND_BLUE,
-              color: "#ffffff",
-              cursor: loading || !question.trim() ? "default" : "pointer",
-              opacity: loading || !question.trim() ? 0.7 : 1,
-            }}
-          >
-            {loading ? "Thinking…" : "Ask"}
-          </button>
-
-          <span
-            style={{
-              fontSize: 11,
-              color: "#6b7280",
-            }}
-          >
-            Local profile + live answers powered by OpenAI &amp; MyZ🌎NE.
-          </span>
-        </div>
-
-        <div
-          style={{
-            flex: 1,
-            borderRadius: 10,
-            border: "1px dashed #e5e7eb",
-            padding: "10px 10px",
-            fontSize: 12,
-            color: "#374151",
-            backgroundColor: "#f9fafb",
-            overflowY: "auto",
-          }}
-        >
-          {/* Local jurisdiction profile (Royal Palm Beach RS, etc.) */}
-          {profileLoading && (
-            <p
+            <div
               style={{
                 fontSize: 11,
                 color: "#6b7280",
-                marginBottom: 6,
+                marginTop: 2,
+                maxWidth: 480,
               }}
             >
-              Loading local zoning profile…
-            </p>
-          )}
-
-          {profileError && (
-            <div
-              style={{
-                color: "#b91c1c",
-                fontSize: 11,
-                marginBottom: 6,
-              }}
-            >
-              {profileError}
+              Ask zoning, future land use, or entitlement questions. MyZ🌎NE will use the
+              selected parcel&apos;s zoning + FLU context, local profiles (where available),
+              plus general planning knowledge.
             </div>
-          )}
+          </div>
 
-          {profile && !profileLoading && (
+          <button
+            onClick={onClose}
+            style={{
+              borderRadius: 999,
+              border: "1px solid #e5e7eb",
+              padding: "5px 10px",
+              fontSize: 11,
+              backgroundColor: "#ffffff",
+              cursor: "pointer",
+            }}
+          >
+            Close
+          </button>
+        </div>
+
+        {/* Parcel context strip */}
+        <div
+          style={{
+            display: "flex",
+            flexWrap: "wrap",
+            gap: 12,
+            fontSize: 11,
+            color: "#4b5563",
+            marginBottom: 10,
+          }}
+        >
+          <div>
+            <span style={{ textTransform: "uppercase", color: "#9ca3af" }}>
+              Parcel
+            </span>
+            <div style={{ fontSize: 12, color: "#111827" }}>
+              {parcel?.address || "—"}
+            </div>
+          </div>
+          <div>
+            <span style={{ textTransform: "uppercase", color: "#9ca3af" }}>
+              Parcel ID
+            </span>
+            <div style={{ fontSize: 12, color: "#111827" }}>
+              {parcel?.id || "—"}
+            </div>
+          </div>
+          <div>
+            <span style={{ textTransform: "uppercase", color: "#9ca3af" }}>
+              Jurisdiction
+            </span>
+            <div style={{ fontSize: 12, color: "#111827" }}>
+              {jurisdictionLabel}
+            </div>
+          </div>
+          <div>
+            <span style={{ textTransform: "uppercase", color: "#9ca3af" }}>
+              Zoning
+            </span>
+            <div style={{ fontSize: 12, color: "#111827" }}>{zoningLabel}</div>
+          </div>
+          <div>
+            <span style={{ textTransform: "uppercase", color: "#9ca3af" }}>
+              Future Land Use
+            </span>
+            <div style={{ fontSize: 12, color: "#111827" }}>{fluLabel}</div>
+          </div>
+        </div>
+
+        {/* Main layout: left = local profile, right = Q&A */}
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "minmax(0, 1.1fr) minmax(0, 1.7fr)",
+            gap: 12,
+            alignItems: "stretch",
+            flex: 1,
+            minHeight: 0,
+          }}
+        >
+          {/* LEFT: Local zoning profile */}
+          <div
+            style={{
+              borderRadius: 12,
+              border: "1px solid #e5e7eb",
+              backgroundColor: "#f9fafb",
+              padding: 10,
+              fontSize: 12,
+              display: "flex",
+              flexDirection: "column",
+              gap: 6,
+            }}
+          >
             <div
               style={{
-                marginBottom: 10,
-                padding: "8px 8px",
-                borderRadius: 8,
-                backgroundColor: "#eef2ff",
-                border: "1px solid #e0e7ff",
+                fontSize: 12,
+                fontWeight: 600,
+                color: "#111827",
+                marginBottom: 2,
               }}
             >
-              <div
+              Local zoning profile
+            </div>
+
+            {profileLoading && (
+              <p
                 style={{
                   fontSize: 11,
-                  fontWeight: 600,
-                  color: "#111827",
-                  textTransform: "uppercase",
+                  color: "#6b7280",
                   marginBottom: 4,
                 }}
               >
-                Local profile –{" "}
-                {profile.jurisdiction || "Jurisdiction"} ·{" "}
-                {profile.zoning || "Zoning"}
-              </div>
+                Loading local zoning profile…
+              </p>
+            )}
 
-              {profile.summary && (
-                <p
+            {profileError && (
+              <div
+                style={{
+                  color: "#b91c1c",
+                  fontSize: 11,
+                  marginBottom: 4,
+                  backgroundColor: "#fef2f2",
+                  borderRadius: 8,
+                  border: "1px solid #fecaca",
+                  padding: "6px 8px",
+                }}
+              >
+                {profileError}
+              </div>
+            )}
+
+            {profile && !profileLoading && (
+              <div
+                style={{
+                  borderRadius: 10,
+                  border: "1px solid #e5e7eb",
+                  backgroundColor: "#eff6ff",
+                  padding: "8px 9px",
+                  fontSize: 12,
+                }}
+              >
+                <div
                   style={{
-                    fontSize: 12,
-                    color: "#1f2937",
+                    fontSize: 11,
+                    fontWeight: 600,
+                    color: "#111827",
+                    textTransform: "uppercase",
                     marginBottom: 4,
                   }}
                 >
-                  {profile.summary}
-                </p>
-              )}
+                  {profile.jurisdiction || "Jurisdiction"} ·{" "}
+                  {profile.zoning || "Zoning district"}
+                </div>
 
-              {Array.isArray(profile.typicalUses) &&
-                profile.typicalUses.length > 0 && (
-                  <div style={{ marginBottom: 4 }}>
-                    <div
-                      style={{
-                        fontSize: 11,
-                        fontWeight: 500,
-                        color: "#374151",
-                        marginBottom: 2,
-                      }}
-                    >
-                      Typical uses
-                    </div>
-                    <ul
-                      style={{
-                        paddingLeft: 18,
-                        margin: 0,
-                        fontSize: 12,
-                        color: "#374151",
-                      }}
-                    >
-                      {profile.typicalUses.map((u, idx) => (
-                        <li key={idx} style={{ marginBottom: 2 }}>
-                          {u}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
+                {profile.summary && (
+                  <p
+                    style={{
+                      fontSize: 12,
+                      color: "#1f2937",
+                      marginBottom: 4,
+                    }}
+                  >
+                    {profile.summary}
+                  </p>
                 )}
 
-              {profile.dimensionalSummary && (
-                <p
+                {Array.isArray(profile.typicalUses) &&
+                  profile.typicalUses.length > 0 && (
+                    <div style={{ marginBottom: 4 }}>
+                      <div
+                        style={{
+                          fontSize: 11,
+                          fontWeight: 500,
+                          color: "#374151",
+                          marginBottom: 2,
+                        }}
+                      >
+                        Typical uses
+                      </div>
+                      <ul
+                        style={{
+                          margin: 0,
+                          paddingLeft: 18,
+                          fontSize: 12,
+                          color: "#374151",
+                          lineHeight: 1.5,
+                        }}
+                      >
+                        {profile.typicalUses.map((u, idx) => (
+                          <li key={idx}>{u}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                {profile.dimensionalSummary && (
+                  <p
+                    style={{
+                      fontSize: 11,
+                      color: "#4b5563",
+                      marginBottom: 4,
+                    }}
+                  >
+                    {profile.dimensionalSummary}
+                  </p>
+                )}
+
+                {profile.notes && (
+                  <p
+                    style={{
+                      fontSize: 11,
+                      color: "#4b5563",
+                      marginBottom: 4,
+                    }}
+                  >
+                    {profile.notes}
+                  </p>
+                )}
+
+                {profile.disclaimer && (
+                  <p
+                    style={{
+                      fontSize: 10,
+                      color: "#6b7280",
+                    }}
+                  >
+                    {profile.disclaimer}
+                  </p>
+                )}
+              </div>
+            )}
+
+            {!profile && !profileLoading && !profileError && (
+              <div
+                style={{
+                  fontSize: 11,
+                  color: "#6b7280",
+                  lineHeight: 1.4,
+                }}
+              >
+                Localized zoning profiles are being rolled out jurisdiction by
+                jurisdiction. For now, answers will rely on the parcel&apos;s zoning,
+                FLU, and general planning practice.
+              </div>
+            )}
+          </div>
+
+          {/* RIGHT: Ask Smart code */}
+          <div
+            style={{
+              borderRadius: 12,
+              border: "1px solid #e5e7eb",
+              backgroundColor: "#ffffff",
+              padding: 10,
+              fontSize: 12,
+              display: "flex",
+              flexDirection: "column",
+              minHeight: 0,
+            }}
+          >
+            <div
+              style={{
+                fontSize: 12,
+                fontWeight: 600,
+                color: "#111827",
+                marginBottom: 6,
+              }}
+            >
+              Ask Smart code
+            </div>
+
+            {/* Question box + button */}
+            <div
+              style={{
+                marginBottom: 8,
+              }}
+            >
+              <textarea
+                placeholder="Example: What are the minimum lot size and setbacks for RS zoning in this jurisdiction?"
+                value={question}
+                onChange={(e) => setQuestion(e.target.value)}
+                style={{
+                  width: "100%",
+                  minHeight: 80,
+                  maxHeight: 140,
+                  resize: "vertical",
+                  padding: "8px 10px",
+                  borderRadius: 10,
+                  border: "1px solid #d1d5db",
+                  fontSize: 13,
+                  fontFamily:
+                    "system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
+                  marginBottom: 6,
+                }}
+              />
+
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  flexWrap: "wrap",
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={handleAsk}
+                  disabled={loading || !question.trim()}
                   style={{
-                    fontSize: 11,
-                    color: "#4b5563",
-                    marginBottom: 4,
+                    borderRadius: 999,
+                    border: "none",
+                    padding: "6px 12px",
+                    fontSize: 12,
+                    backgroundColor: BRAND_BLUE,
+                    color: "#ffffff",
+                    cursor: loading || !question.trim() ? "default" : "pointer",
+                    opacity: loading || !question.trim() ? 0.7 : 1,
                   }}
                 >
-                  {profile.dimensionalSummary}
-                </p>
-              )}
+                  {loading ? "Thinking…" : "Ask"}
+                </button>
 
-              {profile.notes && (
-                <p
+                <span
                   style={{
                     fontSize: 11,
-                    color: "#4b5563",
-                    marginBottom: 4,
-                  }}
-                >
-                  {profile.notes}
-                </p>
-              )}
-
-              {profile.disclaimer && (
-                <p
-                  style={{
-                    fontSize: 10,
                     color: "#6b7280",
                   }}
                 >
-                  {profile.disclaimer}
-                </p>
-              )}
-            </div>
-          )}
-
-          {/* Existing Smart Code answer / helper text */}
-          {error && (
-            <div style={{ color: "#b91c1c", marginBottom: 6 }}>{error}</div>
-          )}
-
-          {!error && !answer && !loading && (
-            <>
-              <div style={{ marginBottom: 4, fontWeight: 500, fontSize: 12 }}>
-                How this works
+                  Local profile + live answers powered by OpenAI &amp; MyZ🌎NE.
+                </span>
               </div>
-              <p style={{ marginBottom: 6 }}>
-                Type a question about zoning, future land use, or development potential.
-                The assistant will ground its answer in the selected parcel&apos;s
-                context (jurisdiction, zoning code, FLU, and area), plus any available
-                local profile and general planning practice.
-              </p>
-              <p style={{ color: "#9ca3af" }}>
-                Always verify results against the adopted zoning code and contact the
-                local jurisdiction for an official determination.
-              </p>
-            </>
-          )}
+            </div>
 
-          {loading && !answer && (
-            <p style={{ color: "#6b7280" }}>
-              Generating a zoning summary and entitlement overview…
-            </p>
-          )}
-
-          {answer && !error && (
+            {/* Answer / helper area */}
             <div
               style={{
-                whiteSpace: "pre-wrap",
+                flex: 1,
+                borderRadius: 10,
+                border: "1px dashed #e5e7eb",
+                padding: "8px 9px",
                 fontSize: 12,
-                color: "#111827",
+                color: "#374151",
+                backgroundColor: "#f9fafb",
+                overflowY: "auto",
               }}
             >
-              {answer}
+              {error && (
+                <div
+                  style={{
+                    color: "#b91c1c",
+                    marginBottom: 6,
+                    fontSize: 11,
+                  }}
+                >
+                  {error}
+                </div>
+              )}
+
+              {!error && !answer && !loading && (
+                <>
+                  <div
+                    style={{
+                      marginBottom: 4,
+                      fontWeight: 500,
+                      fontSize: 12,
+                    }}
+                  >
+                    How this works
+                  </div>
+                  <p
+                    style={{
+                      marginBottom: 6,
+                      fontSize: 11,
+                      lineHeight: 1.5,
+                      textAlign: "justify",
+                    }}
+                  >
+                    Type a question about zoning, future land use, or development
+                    potential. The assistant will ground its answer in the selected
+                    parcel&apos;s context (jurisdiction, zoning code, FLU, and area),
+                    plus any available local profile and general planning practice.
+                  </p>
+                  <ul
+                    style={{
+                      margin: 0,
+                      paddingLeft: 18,
+                      fontSize: 11,
+                      color: "#6b7280",
+                      marginBottom: 6,
+                      lineHeight: 1.4,
+                    }}
+                  >
+                    <li>Use plain language or code citations.</li>
+                    <li>Ask about setbacks, lot size, density, or typical uses.</li>
+                    <li>Run multiple questions for the same parcel.</li>
+                  </ul>
+                  <p
+                    style={{
+                      color: "#9ca3af",
+                      fontSize: 10,
+                      textAlign: "justify",
+                    }}
+                  >
+                    Always verify results against the adopted zoning code and contact the
+                    local jurisdiction for an official determination. This is a planning
+                    support tool, not legal advice or a formal interpretation.
+                  </p>
+                </>
+              )}
+
+              {loading && !answer && (
+                <p
+                  style={{
+                    color: "#6b7280",
+                    fontSize: 11,
+                  }}
+                >
+                  Generating a zoning summary and entitlement overview…
+                </p>
+              )}
+
+              {answer && !error && (
+                <div
+                  style={{
+                    whiteSpace: "pre-wrap",
+                    fontSize: 12,
+                    color: "#111827",
+                    textAlign: "justify",
+                  }}
+                >
+                  {answer}
+                </div>
+              )}
             </div>
-          )}
+          </div>
         </div>
       </div>
     </div>
   );
 }
-
 function JurisdictionModal({ selectedRegion, onSelect, onClose }) {
   const [query, setQuery] = useState("");
 
