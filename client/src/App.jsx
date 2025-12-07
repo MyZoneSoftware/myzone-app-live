@@ -338,7 +338,7 @@ function LoginModal({ onClose, onLogin }) {
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        zIndex: 50,
+        zIndex: 9999,
       }}
     >
       <div
@@ -522,7 +522,7 @@ function SmartCodeModal({ onClose, context }) {
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        zIndex: 50,
+        zIndex: 9999,
       }}
     >
       <div
@@ -830,7 +830,7 @@ function JurisdictionModal({ selectedRegion, onSelect, onClose }) {
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        zIndex: 50,
+        zIndex: 9999,
       }}
     >
       <div
