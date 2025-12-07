@@ -168,12 +168,6 @@ function InteractiveMap({
           pathOptions={{ color: "#f97316", weight: 1 }}
         />
       )}
-        <NoticeReportModal
-          onClose={() => setShowNoticeReport(false)}
-          selectedParcel={selectedParcel}
-          bufferReport={bufferReport}
-        />
-      )}
     </>
   );
 }
@@ -1026,9 +1020,8 @@ function SmartCodeModal({ onClose, context }) {
     </div>
   );
 }
-function NoticeReportModal({ open, onClose, selectedParcel, bufferReport }) {
+function NoticeReportModal({ onClose, selectedParcel, bufferReport }) {
   if (
-    !open ||
     !bufferReport ||
     !Array.isArray(bufferReport.parcels) ||
     bufferReport.parcels.length === 0
@@ -2916,9 +2909,11 @@ export default function App() {
     </div>
   );
 
+
   return (
     <>
       {viewMode === "home" ? renderHome() : renderMapView()}
+
       {showLogin && (
         <LoginModal
           onClose={() => setShowLogin(false)}
@@ -2928,6 +2923,7 @@ export default function App() {
           }}
         />
       )}
+
       {showSmartCodeModal && (
         <SmartCodeModal
           onClose={() => setShowSmartCodeModal(false)}
@@ -2937,6 +2933,7 @@ export default function App() {
           }}
         />
       )}
+
       {showJurisdictionModal && (
         <JurisdictionModal
           selectedRegion={selectedRegion}
@@ -2944,11 +2941,17 @@ export default function App() {
           onClose={() => setShowJurisdictionModal(false)}
         />
       )}
-      <FeasibilityModal
-        open={showFeasibilityModal}
-        onClose={() => setShowFeasibilityModal(false)}
-        parcel={selectedParcel}
-      />
+
+      {showNoticeReport &&
+        bufferReport &&
+        Array.isArray(bufferReport.parcels) &&
+        bufferReport.parcels.length > 0 && (
+          <NoticeReportModal
+            onClose={() => setShowNoticeReport(false)}
+            selectedParcel={selectedParcel}
+            bufferReport={bufferReport}
+          />
+        )}
     </>
   );
 }
