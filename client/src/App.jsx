@@ -21,7 +21,7 @@ import {
 } from "./services/parcelService";
 
 import FeasibilityModal from "./components/FeasibilityModal";
-
+import MapAutoFit from "./components/MapAutoFit";
 const DEFAULT_CENTER = { lat: 26.64, lng: -80.09 };
 const DEFAULT_ZOOM = 13;
 const BRAND_BLUE = "#0f172a";
@@ -69,95 +69,134 @@ function InteractiveMap({
 
   useEffect(() => {
     if (center && typeof center.lat === "number" && typeof center.lng === "number") {
-      map.flyTo([center.lat, center.lng], zoom, {
-        duration: 0.8,
-      });
+      // No animation to avoid interaction lockups
+      try {
+        map.setView([center.lat, center.lng], zoom, { animate: false });
+        map.dragging?.enable();
+        map.scrollWheelZoom?.enable();
+        map.doubleClickZoom?.enable();
+      } catch (_e) {}
     }
   }, [center, zoom, map]);
 
-  // Ensure Leaflet recalculates layout when the map is mounted or becomes visible
   useEffect(() => {
     const resize = () => {
       try {
         map.invalidateSize();
-      } catch (e) {
-        // ignore
-      }
+      } catch (_e) {}
     };
-
-    // Run once when the map is ready
     resize();
-
-    // Also respond to window resizes (and layout shifts)
     window.addEventListener("resize", resize);
-
-    // Extra nudge shortly after mount to handle hidden-then-shown transitions
     const t = setTimeout(resize, 300);
-
     return () => {
       window.removeEventListener("resize", resize);
       clearTimeout(t);
     };
   }, [map]);
 
-  const boundaryStyle = {
-    color: "#d4d4d8",
-    weight: 1,
-    fillOpacity: 0,
-  };
-
-  const parcelStyle = {
-    color: "#9ca3af",
-    weight: 0.4,
-    fillOpacity: 0,
-  };
-
-  const zoningStyle = {
-    color: "#0ea5e9",
-    weight: 0.6,
-    fillOpacity: 0.08,
-  };
+  const boundaryStyle = { color: "#d4d4d8", weight: 1, fillOpacity: 0 };
+  const parcelStyle = { color: "#9ca3af", weight: 0.4, fillOpacity: 0 };
+  const zoningStyle = { color: "#0ea5e9", weight: 0.6, fillOpacity: 0.08 };
 
   const bufferCenter =
     bufferReport && bufferReport.center
       ? [bufferReport.center.lat, bufferReport.center.lng]
       : null;
 
-  const selectedFeatureCollection =
-    selectedParcel && selectedParcel.geometry
+  function countCoords(geom) {
+    try {
+      const c = geom?.coordinates;
+      if (!c) return 0;
+      let n = 0;
+      const walk = (x) => {
+        if (!Array.isArray(x)) return;
+        if (x.length === 2 && typeof x[0] === "number" && typeof x[1] === "number") {
+          n += 1;
+          return;
+        }
+        for (const item of x) walk(item);
+      };
+      walk(c);
+      return n;
+    } catch {
+      return 0;
+    }
+  }
+
+  function geometryLooksLikeLatLng(geom) {
+    try {
+      const c = geom?.coordinates;
+      if (!c) return false;
+
+      let checked = 0;
+      let ok = 0;
+
+      const walk = (x) => {
+        if (!Array.isArray(x) || checked >= 50) return;
+        if (x.length === 2 && typeof x[0] === "number" && typeof x[1] === "number") {
+          checked += 1;
+          const [lon, lat] = x;
+          if (lon >= -180 && lon <= 180 && lat >= -90 && lat <= 90) ok += 1;
+          return;
+        }
+        for (const item of x) walk(item);
+      };
+
+      walk(c);
+      return checked > 0 && (ok / checked) >= 0.9;
+    } catch {
+      return false;
+    }
+  }
+
+  // fix Python "and" to JS
+    const selectedFeatureCollection =
+    selectedParcel &&
+    selectedParcel.geometry &&
+    geometryLooksLikeLatLng(selectedParcel.geometry) &&
+    countCoords(selectedParcel.geometry) <= 4000
       ? {
           type: "FeatureCollection",
           features: [
-            {
-              type: "Feature",
-              properties: {},
-              geometry: selectedParcel.geometry,
-            },
+            { type: "Feature", properties: {}, geometry: selectedParcel.geometry },
           ],
         }
       : null;
 
+  // ✅ Critical: forward clicks from GeoJSON layers (Leaflet eats map clicks on vector layers)
+  const forwardClick = (e) => {
+    try {
+      const { lat, lng } = e.latlng;
+      onMapClick(lat, lng);
+    } catch (_e) {}
+  };
+
   return (
     <>
+      <MapAutoFit selectedParcel={selectedParcel} />
+
       <TileLayer
-        attribution='&copy; OpenStreetMap contributors'
+        attribution="&copy; OpenStreetMap contributors"
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
       />
 
-      {boundaries && <GeoJSON data={boundaries} style={boundaryStyle} />}
+      {boundaries && (
+        <GeoJSON data={boundaries} style={boundaryStyle} eventHandlers={{ click: forwardClick }} />
+      )}
 
-      {zoning && <GeoJSON data={zoning} style={zoningStyle} />}
+      {zoning && (
+        <GeoJSON data={zoning} style={zoningStyle} eventHandlers={{ click: forwardClick }} />
+      )}
 
-      {parcels && <GeoJSON data={parcels} style={parcelStyle} />}
+      {parcels && (
+        <GeoJSON data={parcels} style={parcelStyle} eventHandlers={{ click: forwardClick }} />
+      )}
 
       {selectedFeatureCollection && (
         <GeoJSON
           data={selectedFeatureCollection}
-          style={{
-            color: "#ef4444",
-            weight: 2,
-            fillOpacity: 0,
-          }}
+          style={{ color: "#ef4444", weight: 2, fillOpacity: 0 }}
+          eventHandlers={{ click: forwardClick }}
         />
       )}
 
@@ -2596,24 +2635,25 @@ export default function App() {
                           gap: 8,
                         }}
                       >
-                        <InfoField label="Label" value={selectedParcel.address} />
-                        <InfoField label="Parcel ID" value={selectedParcel.id} />
-                        <InfoField label="Owner" value={selectedParcel.owner || "—"} />
+                        <InfoField label="Address" value={selectedParcel.address || "—"} />
+                        <InfoField label="Parcel ID" value={selectedParcel.id || selectedParcel.parcel_id || "—"} />
+                        <InfoField label="Owner" value={selectedParcel.owner || selectedParcel.ownerName || selectedParcel.OWNER || "—"} />
                         <InfoField
                           label="Jurisdiction"
-                          value={selectedParcel.jurisdiction}
+                          value={selectedParcel.jurisdiction || selectedParcel.JURISDICTION || "—"}
                         />
-                        <InfoField label="Zoning" value={selectedParcel.zoning} />
+                        <InfoField label="Zoning" value={selectedParcel.zoning || selectedParcel.ZONING_DESC || selectedParcel.ZONING || "—"} />
                         <InfoField
                           label="Future Land Use"
-                          value={selectedParcel.flu || "TBD"}
+                          value={selectedParcel.flu || selectedParcel.FLU_DESC || selectedParcel.FLU || "TBD"}
                         />
                         <InfoField
                           label="Area (acres)"
                           value={
-                            selectedParcel.areaAcres != null
-                              ? selectedParcel.areaAcres.toFixed(3)
-                              : "—"
+                            (() => {
+                              const n = Number(selectedParcel.areaAcres);
+                              return Number.isFinite(n) ? n.toFixed(3) : "—";
+                            })()
                           }
                         />
                       </div>
