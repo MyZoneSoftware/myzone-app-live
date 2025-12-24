@@ -1,11 +1,10 @@
 import { MapContainer } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 
-export default function MapWrapper({
-  center,
+export default function MapWrapper({ center,
   zoom,
   children,
-}) {
+, showBuffer }) {
   return (
     <MapContainer key={selectedParcelKey || "none"}
       center={[center.lat, center.lng]}

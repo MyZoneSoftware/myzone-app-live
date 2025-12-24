@@ -1634,7 +1634,9 @@ export default function App() {
 
   
 const [selectedParcel, setSelectedParcel] = useState(null);
-  const [selectedParcelKey, setSelectedParcelKey] = useState(null);
+  
+const [selectedParcelKey, setSelectedParcelKey] = useState(null);
+  const [showBuffer, setShowBuffer] = useState(false);
   const [bufferReport, setBufferReport] = useState(null);
   const [bufferRadiusFeet, setBufferRadiusFeet] = useState(300);
   const [bufferLoading, setBufferLoading] = useState(false);
@@ -2562,7 +2564,7 @@ const [selectedParcel, setSelectedParcel] = useState(null);
               {layersError}
             </div>
           ) : (
-            <MapWrapper
+            <MapWrapper showBuffer={showBuffer}
               center={mapCenter}
               zoom={zoom}
               onMapClick={handleMapClick}
