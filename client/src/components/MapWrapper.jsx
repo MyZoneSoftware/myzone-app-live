@@ -7,7 +7,7 @@ export default function MapWrapper({
   children,
 }) {
   return (
-    <MapContainer
+    <MapContainer key={selectedParcelKey || "none"}
       center={[center.lat, center.lng]}
       zoom={zoom}
       style={{

@@ -1632,7 +1632,9 @@ export default function App() {
   const [layersLoading, setLayersLoading] = useState(true);
   const [layersError, setLayersError] = useState(null);
 
-  const [selectedParcel, setSelectedParcel] = useState(null);
+  
+const [selectedParcel, setSelectedParcel] = useState(null);
+  const [selectedParcelKey, setSelectedParcelKey] = useState(null);
   const [bufferReport, setBufferReport] = useState(null);
   const [bufferRadiusFeet, setBufferRadiusFeet] = useState(300);
   const [bufferLoading, setBufferLoading] = useState(false);
@@ -2995,3 +2997,24 @@ export default function App() {
     </>
   );
 }
+// ---- Fix #3.2: unified parcel selection ----
+// (safe additive patch)
+/**
+ * Canonical parcel selector
+ * All parcel selections must go through this
+ */
+const selectParcel = (parcel, source = "unknown") => {
+  if (!parcel) return;
+
+  const key =
+    parcel.PCN ||
+    parcel.parcel_id ||
+    parcel.id ||
+    parcel.properties?.PCN ||
+    JSON.stringify(parcel.geometry);
+
+  setSelectedParcel(parcel);
+  setSelectedParcelKey(key);
+
+  console.debug(`[selectParcel] source=${source}`, key);
+};
