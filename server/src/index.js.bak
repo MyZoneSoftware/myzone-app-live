@@ -1,0 +1,14 @@
+// Auto‐generated ESM entrypoint
+// Load the true app implementation (must be ESM now)
+
+import expressApp from './index.mjs';
+import http from 'http';
+
+const PORT = process.env.PORT || 5003;
+const server = http.createServer(expressApp);
+
+server.listen(PORT, () => {
+  console.log(\`✅ Backend API (ESM) listening on http://localhost:\${PORT}\`);
+});
+
+export default server;

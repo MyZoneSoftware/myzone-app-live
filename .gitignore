@@ -9,3 +9,7 @@ map-api/data/Situs_Addresses.geojson
 .env
 map-api/.env
 client/.env
+
+# macOS
+.DS_Store
+**/.DS_Store
