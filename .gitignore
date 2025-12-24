@@ -13,3 +13,4 @@ client/.env
 # macOS
 .DS_Store
 **/.DS_Store
+myzone-pre-lfs-backup.bundle
