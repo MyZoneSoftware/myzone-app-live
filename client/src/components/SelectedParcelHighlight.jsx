@@ -1,41 +1,33 @@
-import React from "react";
 import { GeoJSON } from "react-leaflet";
 
 /**
- * Draws the currently selected parcel as a highlighted polygon on top
- * of the base parcel layer.
- *
- * Expects selectedParcel in the shape returned by your API:
- * {
- *   id,
- *   geometry: { type: "Polygon" | "MultiPolygon", coordinates: ... },
- *   ...
- * }
+ * SelectedParcelHighlight
+ * - Forces GeoJSON re-mount when selected parcel changes
+ * - Fixes stale geometry without UI or backend changes
  */
 export default function SelectedParcelHighlight({ selectedParcel }) {
-  if (!selectedParcel || !selectedParcel.geometry) {
-    return null;
-  }
+  if (!selectedParcel || !selectedParcel.geometry) return null;
 
-  const feature = {
-    type: "Feature",
-    geometry: selectedParcel.geometry,
-    properties: {
-      id: selectedParcel.id || "selected-parcel",
-    },
-  };
+  // Stable, change-sensitive key to force remount
+  const featureKey =
+    selectedParcel.id ||
+    selectedParcel.parcel_id ||
+    selectedParcel.PCN ||
+    JSON.stringify(selectedParcel.geometry).slice(0, 64);
 
-  const fc = {
-    type: "FeatureCollection",
-    features: [feature],
-  };
-
-  const highlightStyle = {
-    color: "#111827",
-    weight: 3,
-    fillColor: "#ffffff",
-    fillOpacity: 0.2,
-  };
-
-  return <GeoJSON data={fc} style={highlightStyle} />;
+  return (
+    <GeoJSON
+      key={featureKey}
+      data={{
+        type: "Feature",
+        properties: {},
+        geometry: selectedParcel.geometry,
+      }}
+      style={{
+        color: "#ff0000",
+        weight: 3,
+        fillOpacity: 0.15,
+      }}
+    />
+  );
 }

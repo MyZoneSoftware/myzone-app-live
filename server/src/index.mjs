@@ -1,106 +1,72 @@
+import express from "express";
+import cors from "cors";
 import dotenv from "dotenv";
+
+/* import route modules */
+import * as searchMod from "./routes/search.mjs";
+import * as projectsMod from "./routes/projects.mjs";
+import * as authMod from "./routes/auth.mjs";
+import * as districtsMod from "./routes/districts.mjs";
+import * as regulationsMod from "./routes/regulations.mjs";
+import * as aiMod from "./routes/ai.mjs";
+import geoRoutes from "./routes/geo.mjs"; // existing, confirmed
+
 dotenv.config();
 
-import express from "express";
-import http from "http";
-import cors from "cors";
-import helmet from "helmet";
-import morgan from "morgan";
-
-// Route imports
-import authRoutes from "./routes/auth.mjs";
-import districtsRoutes from "./routes/districts.mjs";
-import geoRoutes from "./routes/geo.mjs";
-import projectsRoutes from "./routes/projects.mjs";
-import regulationsRoutes from "./routes/regulations.mjs";
-import searchRoutes from "./routes/search.mjs";
-import arcgisRoutes from "./routes/arcgis.mjs";
-
-// ✅ Buffer routes (Notice radius / neighbor list stub)
-import bufferRoutes from "./routes/buffer.mjs";
-
 const app = express();
+app.use(cors());
+app.use(express.json());
+
+const PORT = process.env.PORT || 5050;
 
 /**
- * Normalize route exports into Express middleware
+ * Normalize ANY route export into an Express router function
  */
-function asRouter(mod, name = "route") {
-  if (typeof mod === "function") return mod;
+function resolveRouter(mod, name) {
+  let candidate = null;
 
-  if (mod && typeof mod === "object") {
-    if (typeof mod.default === "function") return mod.default;
-    if (typeof mod.router === "function") return mod.router;
-    if (mod.default && typeof mod.default === "function") return mod.default;
-    if (mod.default && typeof mod.default.router === "function") return mod.default.router;
+  // Case 1: export default router
+  if (typeof mod?.default === "function") {
+    candidate = mod.default;
   }
 
-  const keys = mod && typeof mod === "object" ? Object.keys(mod) : [];
-  throw new TypeError(
-    `Invalid middleware for ${name}. Got ${typeof mod}. Keys: [${keys.join(", ")}]`
-  );
+  // Case 2: export const router = Router()
+  if (!candidate && typeof mod?.router === "function") {
+    candidate = mod.router;
+  }
+
+  // Case 3: export default { router, ... }
+  if (!candidate && typeof mod?.default === "object" && typeof mod.default.router === "function") {
+    candidate = mod.default.router;
+  }
+
+  if (typeof candidate !== "function") {
+    console.error(`❌ Route "${name}" does not export an Express router function.`);
+    console.error("Available module keys:", Object.keys(mod || {}));
+    if (mod?.default && typeof mod.default === "object") {
+      console.error("Default export keys:", Object.keys(mod.default));
+    }
+    process.exit(1);
+  }
+
+  return candidate;
 }
 
-// Middleware
-app.use(express.json({ limit: "2mb" }));
-app.use(cors());
-app.use(helmet());
-app.use(morgan("dev"));
+/* API routes */
+app.use("/api/search", resolveRouter(searchMod, "search"));
+app.use("/api/projects", resolveRouter(projectsMod, "projects"));
+app.use("/api/auth", resolveRouter(authMod, "auth"));
+app.use("/api/districts", resolveRouter(districtsMod, "districts"));
+app.use("/api/regulations", resolveRouter(regulationsMod, "regulations"));
+app.use("/api/ai", resolveRouter(aiMod, "ai"));
+app.use("/api/geo", geoRoutes); // geo.mjs already exports router correctly
 
-// API routes
-app.use("/api/auth", asRouter(authRoutes, "authRoutes"));
-app.use("/api/districts", asRouter(districtsRoutes, "districtsRoutes"));
-app.use("/api/geo", asRouter(geoRoutes, "geoRoutes"));
-
-// ✅ Buffer endpoint expected by the UI:
-// GET /api/geo/buffer?lat=..&lng=..&radiusFeet=..
-app.use("/api/geo/buffer", asRouter(bufferRoutes, "bufferRoutes"));
-
-app.use("/api/projects", asRouter(projectsRoutes, "projectsRoutes"));
-app.use("/api/regulations", asRouter(regulationsRoutes, "regulationsRoutes"));
-app.use("/api/search", asRouter(searchRoutes, "searchRoutes"));
-
-// ✅ ArcGIS routes
-app.use("/api/arcgis", asRouter(arcgisRoutes, "arcgisRoutes"));
-
-/**
- * ✅ Back-compat alias for UI parcel search
- * UI calls: GET /api/search/parcel?q=...
- * We forward it to geo search:
- *  - /api/geo/search?parcel=...  (PCN)
- *  - /api/geo/search?address=... (address)
- */
-app.get("/api/search/parcel", (req, res) => {
-  const q = String(req.query?.q || "").trim();
-  if (!q) return res.status(400).json({ error: "q is required" });
-
-  // Heuristic: PCNs are usually digits + dashes (no letters)
-  const normalized = q.replace(/\s+/g, "");
-  const looksLikeParcelId = /^[0-9-]+$/.test(normalized) && normalized.length >= 6;
-
-  const target = looksLikeParcelId
-    ? `/api/geo/search?parcel=${encodeURIComponent(q)}`
-    : `/api/geo/search?address=${encodeURIComponent(q)}`;
-
-  // 302 redirect is followed by fetch() by default
-  return res.redirect(302, target);
+/* health */
+app.get("/api/health", (_req, res) => {
+  res.json({ ok: true });
 });
 
-// Health check
-app.get("/api/health", (req, res) => {
-  res.json({ ok: true, timestamp: new Date().toISOString() });
+/* start server */
+app.listen(PORT, () => {
+  console.log(`✅ Backend API listening on http://localhost:${PORT}`);
 });
-
-// 404 fallback
-app.use((req, res) => {
-  res.status(404).json({ error: "Not Found" });
-});
-
-// Start server
-const PORT = Number(process.env.PORT) || 5003;
-const server = http.createServer(app);
-
-server.listen(PORT, () => {
-  console.log("Backend API listening on http://localhost:" + PORT);
-});
-
-export default app;

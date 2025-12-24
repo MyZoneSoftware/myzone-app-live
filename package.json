@@ -1,19 +1,23 @@
 {
   "name": "myzone-server",
   "version": "1.0.0",
+  "private": true,
   "type": "module",
-  "main": "server/src/index.mjs",
   "scripts": {
+    "predev": "lsof -ti tcp:5050 | xargs kill -9 || true",
     "dev": "nodemon server/src/index.mjs",
+    "prestart": "lsof -ti tcp:5050 | xargs kill -9 || true",
     "start": "node server/src/index.mjs"
   },
   "dependencies": {
+    "@turf/turf": "^7.2.0",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
-    "express": "^4.19.2",
+    "express": "^4.21.2",
+    "fs-extra": "^11.2.0",
     "node-fetch": "^3.3.2"
   },
   "devDependencies": {
-    "nodemon": "^3.1.0"
+    "nodemon": "^3.1.11"
   }
 }
