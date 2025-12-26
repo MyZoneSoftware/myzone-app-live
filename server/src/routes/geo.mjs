@@ -3,7 +3,70 @@ import fs from "fs";
 import path from "path";
 import * as turf from "@turf/turf";
 
+// Use global fetch when available (Node 18+). Fallback to node-fetch if needed.
+async function httpFetch(...args) {
+  if (typeof fetch !== "undefined") return fetch(...args);
+  const mod = await import("node-fetch");
+  return mod.default(...args);
+}
+
 const router = express.Router();
+
+// --- Palm Beach County Property Information (Owner/Mailing) enrichment ---
+const PBC_URL =
+  "https://services1.arcgis.com/ZWOoUZbtaYePLlPw/arcgis/rest/services/Property_Information_Table/FeatureServer/0/query";
+const PBC_OUTFIELDS = "PARCEL_NUMBER,OWNER_NAME1,OWNER_NAME2,PADDR1,CITYNAME";
+const pbcCache = new Map(); // parcelNumber -> attributes|null
+
+function chunk(arr, size) {
+  const out = [];
+  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+  return out;
+}
+
+async function fetchPbcAttributes(parcelNumbers) {
+  const unique = Array.from(new Set((parcelNumbers || []).filter(Boolean).map(String)));
+  const missing = unique.filter((n) => !pbcCache.has(n));
+  if (missing.length === 0) return;
+
+  // ArcGIS supports IN (...) queries. Chunk to keep URL size reasonable.
+  for (const group of chunk(missing, 75)) {
+    const inList = group.map((n) => `'${n.replace(/'/g, "''")}'`).join(",");
+    const where = `PARCEL_NUMBER IN (${inList})`;
+    const url =
+      `${PBC_URL}?f=json&outFields=${encodeURIComponent(PBC_OUTFIELDS)}` +
+      `&where=${encodeURIComponent(where)}&returnGeometry=false`;
+
+    try {
+      const resp = await httpFetch(url);
+      const json = await resp.json();
+      const feats = json?.features || [];
+      const found = new Map();
+      for (const ft of feats) {
+        const a = ft?.attributes || {};
+        if (a.PARCEL_NUMBER != null) found.set(String(a.PARCEL_NUMBER), a);
+      }
+      for (const n of group) pbcCache.set(String(n), found.get(String(n)) || null);
+    } catch (e) {
+      console.error("PBC enrichment batch failed:", e?.message || String(e));
+      // Mark as null to avoid hammering the service on repeated requests
+      for (const n of group) pbcCache.set(String(n), null);
+    }
+  }
+}
+
+function applyPbcToParcel(parcel, attrs) {
+  if (!parcel) return parcel;
+  const ownerName = attrs ? [attrs.OWNER_NAME1, attrs.OWNER_NAME2].filter(Boolean).join(" ").trim() : "";
+  const mailingAddress = attrs?.PADDR1 ? String(attrs.PADDR1).trim() : "";
+  const mailingCity = attrs?.CITYNAME ? String(attrs.CITYNAME).trim() : "";
+  return {
+    ...parcel,
+    ownerName,
+    mailingAddress,
+    mailingCity,
+  };
+}
 
 /**
  * Local GeoJSON-backed GEO routes (NO ArcGIS calls)
@@ -15,13 +78,6 @@ const router = express.Router();
  *  - GET  /api/geo/search?address=TEXT
  *  - GET  /api/geo/buffer?lat=&lng=&radiusFeet=
  */
-
-/* ----------------------------- helpers ----------------------------- */
-
-function num(x) {
-  const n = Number(x);
-  return Number.isFinite(n) ? n : null;
-}
 
 function normalizeStr(v) {
   return String(v ?? "").trim();
@@ -40,246 +96,151 @@ function safeJsonParse(raw, where = "GeoJSON") {
   }
 }
 
-function resolveDataPath() {
-  // Try common run locations:
-  // 1) repo root:   server/data/parcels_enriched.geojson
-  // 2) server dir:  data/parcels_enriched.geojson
-  // 3) explicit env: MYZONE_PARCELS_PATH
-  const candidates = [];
+function num(v) {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
 
-  if (process.env.MYZONE_PARCELS_PATH) {
-    candidates.push(process.env.MYZONE_PARCELS_PATH);
+function bboxIntersects(a, b) {
+  // [minX, minY, maxX, maxY]
+  return !(a[0] > b[2] || a[2] < b[0] || a[1] > b[3] || a[3] < b[1]);
+}
+
+// ---- parcel loading + spatial grid ----
+let LOADED = false;
+let RAW = null;
+let FEATURES = [];
+let GRID = null;
+
+// One-to-one feature grid (simple index for fast candidate selection)
+function buildGrid(features) {
+  const bboxes = [];
+  const feats = [];
+  const centers = [];
+  for (const f of features) {
+    try {
+      const bbox = turf.bbox(f);
+      bboxes.push(bbox);
+      feats.push(f);
+      const c = turf.center(f);
+      centers.push(c.geometry.coordinates);
+    } catch {
+      // skip invalid
+      bboxes.push(null);
+      feats.push(null);
+      centers.push(null);
+    }
   }
+  return { bboxes, features: feats, centers };
+}
 
-  candidates.push(
+function resolveGeoJsonPath() {
+  const candidates = [
+    // 1) repo root:   server/data/parcels_enriched.geojson
+    // 2) server dir:  data/parcels_enriched.geojson
+    process.env.MYZONE_PARCELS_PATH,
     path.resolve(process.cwd(), "server", "data", "parcels_enriched.geojson"),
     path.resolve(process.cwd(), "data", "parcels_enriched.geojson"),
     path.resolve(process.cwd(), "server", "data", "parcels_enriched.json"),
     path.resolve(process.cwd(), "data", "parcels_enriched.json"),
-  );
+  ].filter(Boolean);
 
   for (const p of candidates) {
-    try {
-      if (p && fs.existsSync(p)) return p;
-    } catch {}
+    if (fs.existsSync(p)) return p;
   }
 
-  // Provide a helpful error message
   throw new Error(
     `parcels_enriched.geojson not found. Tried:\n- ${candidates.join("\n- ")}\n\n` +
-    `Fix: ensure the file exists at server/data/parcels_enriched.geojson (repo root), ` +
-    `or set MYZONE_PARCELS_PATH=/full/path/to/parcels_enriched.geojson`
+      `Fix: ensure the file exists at server/data/parcels_enriched.geojson (repo root), ` +
+      `or set MYZONE_PARCELS_PATH=/full/path/to/parcels_enriched.geojson`
   );
 }
 
-function getProp(props, keys) {
-  for (const k of keys) {
-    if (props && props[k] != null && String(props[k]).trim() !== "") return props[k];
-  }
-  return null;
+function loadParcelsOnce() {
+  if (LOADED) return;
+  const p = resolveGeoJsonPath();
+  const raw = fs.readFileSync(p, "utf8");
+  RAW = safeJsonParse(raw, p);
+  FEATURES = RAW?.features || [];
+  GRID = buildGrid(FEATURES);
+  LOADED = true;
 }
 
 function normalizeParcelFeature(feature) {
   const props = feature?.properties || {};
   const id =
-    getProp(props, ["id", "parcel_id", "PARID", "PARCEL_ID", "PCN", "PIN", "PID"]) ??
+    normalizeStr(props.id || props.parcel_id || props.PARID || props.PARCEL_ID || props.PCN || props.PIN || props.PID) ||
     "";
 
   const address =
-    getProp(props, ["address", "ADDRESS", "SITE_ADDR", "SITUS", "SITUS_ADDR", "FULL_ADD"]) ??
+    normalizeStr(props.address || props.ADDRESS || props.SITE_ADDR || props.SITUS || props.SITUS_ADDR || props.FULL_ADD) ||
     "";
 
   const owner =
-    getProp(props, ["owner", "OWNER", "OWNER_NAME", "OWN_NAME", "OWNERNME"]) ??
-    "";
+    normalizeStr(props.owner || props.OWNER || props.OWNER_NAME || props.OWN_NAME || props.OWNERNME || "") || "";
 
   const jurisdiction =
-    getProp(props, ["jurisdiction", "JURIS", "MUNICIPALITY", "CITY", "JURISDICTION"]) ??
-    "Palm Beach County";
+    normalizeStr(props.jurisdiction || props.JURIS || props.MUNICIPALITY || props.CITY || props.JURISDICTION || "") || "";
 
   const zoning =
-    getProp(props, ["zoning", "ZONING", "ZONING_DESC", "ZONING_DIST", "DISTRICT", "ZONE"]) ??
+    normalizeStr(props.zoning || props.ZONING || props.ZONING_DESC || props.ZONING_DIST || props.DISTRICT || props.ZONE || "") ||
     "";
 
-  const flu =
-    getProp(props, ["flu", "FLU", "FUTURE_LAND_USE", "FLU_DESC", "FLU_CATEGORY"]) ??
-    "";
+  const flu = normalizeStr(props.flu || props.FLU || props.FUTURE_LU || props.FUTURE_LAND_USE || "") || "";
 
-  let areaAcres =
-    getProp(props, ["areaAcres", "AREA_ACRES", "ACRES", "GIS_ACRES", "Calc_Acres"]) ??
-    null;
-
-  if (areaAcres != null) {
-    const n = Number(areaAcres);
-    areaAcres = Number.isFinite(n) ? n : null;
+  let areaAcres = null;
+  try {
+    const sqm = turf.area(feature);
+    areaAcres = sqm / 4046.8564224;
+  } catch {
+    areaAcres = null;
   }
 
-  // Derive a point for label/map center
-  let lat = getProp(props, ["lat", "LAT", "Y", "y"]) ?? null;
-  let lng = getProp(props, ["lng", "LNG", "lon", "LON", "X", "x"]) ?? null;
-  lat = lat != null ? Number(lat) : null;
-  lng = lng != null ? Number(lng) : null;
-  if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
-    try {
-      const c = turf.centroid(feature);
-      const coords = c?.geometry?.coordinates;
-      if (Array.isArray(coords) && coords.length === 2) {
-        lng = coords[0];
-        lat = coords[1];
-      }
-    } catch {
-      lat = null;
-      lng = null;
-    }
+  // centroid lat/lng
+  let lat = null,
+    lng = null;
+  try {
+    const c = turf.center(feature);
+    lng = c.geometry.coordinates[0];
+    lat = c.geometry.coordinates[1];
+  } catch {
+    lat = null;
+    lng = null;
   }
 
   return {
-    id: String(id),
-    address: String(address),
-    owner: String(owner),
-    jurisdiction: String(jurisdiction),
-    zoning: String(zoning),
-    flu: String(flu),
-    areaAcres: areaAcres,
-    lat: Number.isFinite(lat) ? lat : null,
-    lng: Number.isFinite(lng) ? lng : null,
-    // Keep geometry for highlighting
+    id,
+    address,
+    owner,
+    jurisdiction,
+    zoning,
+    flu,
+    areaAcres: areaAcres == null ? null : Number(areaAcres.toFixed(4)),
+    lat,
+    lng,
     geometry: feature?.geometry || null,
-    // Keep original props for debugging/compat
     _raw: props,
   };
 }
 
-/* --------------------------- in-memory index --------------------------- */
-/**
- * We can’t scan 479k polygons per click. Build a simple grid index:
- * - Compute bbox per feature
- * - Assign bbox to grid cells (e.g., 0.002° ~ ~700ft N-S; varies E-W)
- * - Query cell candidates on click/buffer bbox
- */
-
-const GRID = {
-  sizeDeg: Number(process.env.MYZONE_GRID_DEG || 0.002), // tweak if needed
-  map: new Map(), // key -> array of feature indices
-  bboxes: [],     // index -> [minX,minY,maxX,maxY]
-  features: [],   // index -> Feature
-  loaded: false,
-  dataPath: null,
-};
-
-function cellKey(ix, iy) {
-  return `${ix}:${iy}`;
-}
-
-function bboxToCellRange(bbox) {
-  const [minX, minY, maxX, maxY] = bbox;
-  const s = GRID.sizeDeg;
-  const ix0 = Math.floor(minX / s);
-  const ix1 = Math.floor(maxX / s);
-  const iy0 = Math.floor(minY / s);
-  const iy1 = Math.floor(maxY / s);
-  return [ix0, iy0, ix1, iy1];
-}
-
-function addToGrid(i, bbox) {
-  const [ix0, iy0, ix1, iy1] = bboxToCellRange(bbox);
-  for (let ix = ix0; ix <= ix1; ix++) {
-    for (let iy = iy0; iy <= iy1; iy++) {
-      const k = cellKey(ix, iy);
-      const arr = GRID.map.get(k);
-      if (arr) arr.push(i);
-      else GRID.map.set(k, [i]);
-    }
-  }
-}
-
-function bboxIntersects(a, b) {
-  // a,b are [minX,minY,maxX,maxY]
-  return !(a[2] < b[0] || a[0] > b[2] || a[3] < b[1] || a[1] > b[3]);
-}
-
-function candidateIndicesForPoint(lng, lat) {
-  const s = GRID.sizeDeg;
-  const ix = Math.floor(lng / s);
-  const iy = Math.floor(lat / s);
-  const k = cellKey(ix, iy);
-  return GRID.map.get(k) || [];
-}
-
+// Candidate indices by bbox (simple scan over grid bbox list)
 function candidateIndicesForBBox(bbox) {
-  const [ix0, iy0, ix1, iy1] = bboxToCellRange(bbox);
+  // With this grid structure, we just scan all bboxes (still fast enough for local dev)
+  // and keep only intersecting indices.
   const out = [];
-  const seen = new Set();
-  for (let ix = ix0; ix <= ix1; ix++) {
-    for (let iy = iy0; iy <= iy1; iy++) {
-      const k = cellKey(ix, iy);
-      const arr = GRID.map.get(k);
-      if (!arr) continue;
-      for (const idx of arr) {
-        if (!seen.has(idx)) {
-          seen.add(idx);
-          out.push(idx);
-        }
-      }
-    }
+  for (let i = 0; i < GRID.bboxes.length; i++) {
+    const b = GRID.bboxes[i];
+    if (!b) continue;
+    if (bboxIntersects(b, bbox)) out.push(i);
   }
   return out;
 }
 
-function loadParcelsOnce() {
-  if (GRID.loaded) return;
-
-  const dataPath = resolveDataPath();
-  GRID.dataPath = dataPath;
-
-  const raw = fs.readFileSync(dataPath, "utf8");
-  const geo = safeJsonParse(raw, dataPath);
-  const features = Array.isArray(geo?.features) ? geo.features : [];
-
-  GRID.features = features;
-  GRID.bboxes = new Array(features.length);
-
-  for (let i = 0; i < features.length; i++) {
-    const f = features[i];
-    let bbox = f?.bbox;
-    if (!Array.isArray(bbox) || bbox.length !== 4) {
-      try {
-        bbox = turf.bbox(f);
-      } catch {
-        // skip broken geometries
-        bbox = null;
-      }
-    }
-    if (!bbox) {
-      GRID.bboxes[i] = null;
-      continue;
-    }
-    GRID.bboxes[i] = bbox;
-    addToGrid(i, bbox);
-  }
-
-  GRID.loaded = true;
-
-  // eslint-disable-next-line no-console
-  console.log(
-    `[geo] Loaded ${features.length} parcels from ${dataPath}\n` +
-    `[geo] Grid sizeDeg=${GRID.sizeDeg}, cells=${GRID.map.size}`
-  );
-}
-
-/* ------------------------------ routes ------------------------------ */
-
-router.get("/health", (req, res) => {
-  try {
-    loadParcelsOnce();
-    res.json({ ok: true, source: "local_geojson", path: GRID.dataPath, count: GRID.features.length });
-  } catch (e) {
-    res.status(500).json({ ok: false, error: e?.message || String(e) });
-  }
-});
+// ---- routes ----
+router.get("/health", (_req, res) => res.json({ ok: true }));
 
 /**
- * GET /api/geo/parcel-by-point?lat=..&lng=..
+ * GET /api/geo/parcel-by-point?lat=&lng=
  */
 router.get("/parcel-by-point", (req, res) => {
   try {
@@ -291,33 +252,18 @@ router.get("/parcel-by-point", (req, res) => {
 
     const pt = turf.point([lng, lat]);
 
-    // Candidate polygons from grid
-    const candidates = candidateIndicesForPoint(lng, lat);
-
-    let hitIndex = -1;
-
-    for (const idx of candidates) {
-      const bbox = GRID.bboxes[idx];
-      if (!bbox) continue;
-      // quick bbox check
-      if (lng < bbox[0] || lng > bbox[2] || lat < bbox[1] || lat > bbox[3]) continue;
-
-      const f = GRID.features[idx];
+    // linear scan for now (sufficient locally)
+    for (const f of FEATURES) {
       try {
         if (turf.booleanPointInPolygon(pt, f)) {
-          hitIndex = idx;
-          break;
+          return res.json({ parcel: normalizeParcelFeature(f) });
         }
       } catch {
         // ignore geometry errors
       }
     }
 
-    if (hitIndex === -1) return res.status(404).json({ error: "No parcel found" });
-
-    const feature = GRID.features[hitIndex];
-    const parcel = normalizeParcelFeature(feature);
-    res.json(parcel);
+    return res.status(404).json({ error: "No parcel found" });
   } catch (e) {
     res.status(500).json({ error: e?.message || String(e) });
   }
@@ -331,32 +277,22 @@ router.get("/search", (req, res) => {
   try {
     loadParcelsOnce();
 
-    const parcelQ = normalizeStr(req.query.parcel);
-    const addrQ = normalizeStr(req.query.address);
+    const parcel = normalizeStr(req.query.parcel);
+    const address = normalizeStr(req.query.address);
 
-    if (!parcelQ && !addrQ) return res.json({ results: [] });
-
-    const needleParcel = normalizeKey(parcelQ);
-    const needleAddr = normalizeKey(addrQ);
+    if (!parcel && !address) return res.status(400).json({ error: "Provide parcel or address" });
 
     const results = [];
-    // Light scan: stop early (UI only needs top hits)
-    for (let i = 0; i < GRID.features.length; i++) {
-      const f = GRID.features[i];
+    const needleParcel = normalizeKey(parcel);
+    const needleAddr = normalizeKey(address);
+
+    for (const f of FEATURES) {
       const p = f?.properties || {};
+      const pid = normalizeKey(p.id || p.parcel_id || p.PARID || p.PARCEL_ID || p.PCN || p.PIN || p.PID);
+      const addr = normalizeKey(p.address || p.ADDRESS || p.SITE_ADDR || p.SITUS || p.SITUS_ADDR || p.FULL_ADD);
 
-      const id = normalizeKey(getProp(p, ["id", "parcel_id", "PARID", "PARCEL_ID", "PCN", "PIN", "PID"]) || "");
-      const address = normalizeKey(getProp(p, ["address", "ADDRESS", "SITE_ADDR", "SITUS", "SITUS_ADDR", "FULL_ADD"]) || "");
-
-      if (needleParcel) {
-        if (id && id === needleParcel) {
-          results.push(normalizeParcelFeature(f));
-        }
-      } else if (needleAddr) {
-        if (address && address.includes(needleAddr)) {
-          results.push(normalizeParcelFeature(f));
-        }
-      }
+      if (needleParcel && pid && pid.includes(needleParcel)) results.push(normalizeParcelFeature(f));
+      else if (needleAddr && addr && addr.includes(needleAddr)) results.push(normalizeParcelFeature(f));
 
       if (results.length >= 20) break;
     }
@@ -373,10 +309,10 @@ router.get("/search", (req, res) => {
  * {
  *   center:{lat,lng},
  *   radiusFeet,
- *   parcels:[{...normalized, geometry}, ...]  // ✅ metadata + geometry
+ *   parcels:[{...normalized, geometry, ownerName, mailingAddress, mailingCity}, ...]
  * }
  */
-router.get("/buffer", (req, res) => {
+router.get("/buffer", async (req, res) => {
   try {
     loadParcelsOnce();
 
@@ -392,10 +328,8 @@ router.get("/buffer", (req, res) => {
 
     // Build a buffer polygon (turf expects km by default)
     const bufferPoly = turf.buffer(center, radiusMeters / 1000, { units: "kilometers", steps: 24 });
-
     const bufferBbox = turf.bbox(bufferPoly);
 
-    // Candidate polygons by bbox grid
     const candidateIdx = candidateIndicesForBBox(bufferBbox);
 
     const parcels = [];
@@ -405,19 +339,25 @@ router.get("/buffer", (req, res) => {
       if (!bboxIntersects(bbox, bufferBbox)) continue;
 
       const f = GRID.features[idx];
+      if (!f) continue;
       try {
         if (turf.booleanIntersects(f, bufferPoly)) {
-          parcels.push(normalizeParcelFeature(f)); // ✅ includes geometry
+          parcels.push(normalizeParcelFeature(f)); // includes geometry
         }
       } catch {
         // ignore geometry errors
       }
     }
 
+    // Enrich with PBC owner/mailing (join on PARCEL_NUMBER = parcel.id)
+    const parcelNumbers = parcels.map((p) => p?.id).filter(Boolean);
+    await fetchPbcAttributes(parcelNumbers);
+    const enrichedParcels = parcels.map((p) => applyPbcToParcel(p, pbcCache.get(String(p.id))));
+
     res.json({
       center: { lat, lng },
       radiusFeet,
-      parcels,
+      parcels: enrichedParcels,
     });
   } catch (e) {
     res.status(500).json({ error: e?.message || String(e) });
