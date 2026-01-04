@@ -63,7 +63,7 @@ function InteractiveMap({
   const map = useMapEvents({
     click: (e) => {
       const { lat, lng } = e.latlng;
-      handleMapClickSelectLatLng(lat, lng, { setSelectedParcel, setSelectedGeometry });
+      onMapClick(lat, lng);
     },
   });
 
@@ -167,7 +167,7 @@ function InteractiveMap({
   const forwardClick = (e) => {
     try {
       const { lat, lng } = e.latlng;
-      handleMapClickSelectLatLng(lat, lng, { setSelectedParcel, setSelectedGeometry });
+      onMapClick(lat, lng);
     } catch (_e) {}
   };
 
@@ -2563,7 +2563,7 @@ export default function App() {
             <MapWrapper
               center={mapCenter}
               zoom={zoom}
-              onMapClick={(e) => handleMapClickSelect(e, { setSelectedParcel, setSelectedGeometry })}
+              onMapClick={handleMapClick}
               boundaries={boundaries}
               parcels={parcelsGeoJSON}
               zoning={zoningGeoJSON}
@@ -2994,54 +2994,4 @@ export default function App() {
         )}
     </>
   );
-}
-
-/* =========================
-   RESTORE CANONICAL SELECTION
-========================= */
-function selectParcel(parcel, {
-  setSelectedParcel,
-  setSelectedGeometry,
-}) {
-  if (!parcel) return;
-
-  setSelectedParcel(parcel);
-
-  if (parcel.geometry) {
-    setSelectedGeometry(parcel.geometry);
-  }
-}
-
-/* =========================
-   SEARCH → SELECT PARCEL
-========================= */
-async function handleSearchSelect(query, ctx) {
-  const parcel = await getParcelBySearch(query);
-  selectParcel(parcel, ctx);
-}
-
-/* =========================
-   MAP CLICK → SELECT PARCEL
-========================= */
-async function handleMapClickSelect(e, ctx) {
-  try {
-    const { lat, lng } = e.latlng;
-    const parcel = await getParcelByLatLng(lat, lng);
-    selectParcel(parcel, ctx);
-  } catch (err) {
-    console.warn("Map click: no parcel found", err);
-  }
-}
-
-/* =========================
-   MAP CLICK → SELECT PARCEL (FIXED)
-   Map provides (lat, lng), NOT event
-========================= */
-async function handleMapClickSelectLatLng(lat, lng, ctx) {
-  try {
-    const parcel = await getParcelByLatLng(lat, lng);
-    selectParcel(parcel, ctx);
-  } catch (err) {
-    console.warn("Map click: no parcel found", err);
-  }
 }
