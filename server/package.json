@@ -2,7 +2,7 @@
   "name": "myzone-server",
   "version": "1.0.0",
   "private": true,
-  "description": "MyZone API (Express)",
+  "description": "MyZone Backend API (CommonJS)",
   "main": "src/index.js",
   "scripts": {
     "predev": "lsof -ti tcp:5050 | xargs kill -9 || true",
@@ -10,17 +10,14 @@
     "prestart": "lsof -ti tcp:5050 | xargs kill -9 || true",
     "start": "node src/index.js"
   },
-  "license": "UNLICENSED",
   "dependencies": {
     "@turf/turf": "^7.2.0",
     "cors": "^2.8.5",
-    "dotenv": "^16.6.1",
+    "dotenv": "^16.4.5",
     "express": "^4.19.2",
-    "helmet": "^7.2.0",
-    "mongoose": "^8.17.1",
-    "morgan": "^1.10.1"
+    "node-fetch": "^2.6.7"
   },
   "devDependencies": {
-    "nodemon": "^3.1.10"
+    "nodemon": "^3.1.11"
   }
 }
