@@ -21,7 +21,7 @@ import {
 } from "./services/parcelService";
 
 import FeasibilityModal from "./components/FeasibilityModal";
-
+import MapAutoFit from "./components/MapAutoFit";
 const DEFAULT_CENTER = { lat: 26.64, lng: -80.09 };
 const DEFAULT_ZOOM = 13;
 const BRAND_BLUE = "#0f172a";
@@ -69,95 +69,134 @@ function InteractiveMap({
 
   useEffect(() => {
     if (center && typeof center.lat === "number" && typeof center.lng === "number") {
-      map.flyTo([center.lat, center.lng], zoom, {
-        duration: 0.8,
-      });
+      // No animation to avoid interaction lockups
+      try {
+        map.setView([center.lat, center.lng], zoom, { animate: false });
+        map.dragging?.enable();
+        map.scrollWheelZoom?.enable();
+        map.doubleClickZoom?.enable();
+      } catch (_e) {}
     }
   }, [center, zoom, map]);
 
-  // Ensure Leaflet recalculates layout when the map is mounted or becomes visible
   useEffect(() => {
     const resize = () => {
       try {
         map.invalidateSize();
-      } catch (e) {
-        // ignore
-      }
+      } catch (_e) {}
     };
-
-    // Run once when the map is ready
     resize();
-
-    // Also respond to window resizes (and layout shifts)
     window.addEventListener("resize", resize);
-
-    // Extra nudge shortly after mount to handle hidden-then-shown transitions
     const t = setTimeout(resize, 300);
-
     return () => {
       window.removeEventListener("resize", resize);
       clearTimeout(t);
     };
   }, [map]);
 
-  const boundaryStyle = {
-    color: "#d4d4d8",
-    weight: 1,
-    fillOpacity: 0,
-  };
-
-  const parcelStyle = {
-    color: "#9ca3af",
-    weight: 0.4,
-    fillOpacity: 0,
-  };
-
-  const zoningStyle = {
-    color: "#0ea5e9",
-    weight: 0.6,
-    fillOpacity: 0.08,
-  };
+  const boundaryStyle = { color: "#d4d4d8", weight: 1, fillOpacity: 0 };
+  const parcelStyle = { color: "#9ca3af", weight: 0.4, fillOpacity: 0 };
+  const zoningStyle = { color: "#0ea5e9", weight: 0.6, fillOpacity: 0.08 };
 
   const bufferCenter =
     bufferReport && bufferReport.center
       ? [bufferReport.center.lat, bufferReport.center.lng]
       : null;
 
-  const selectedFeatureCollection =
-    selectedParcel && selectedParcel.geometry
+  function countCoords(geom) {
+    try {
+      const c = geom?.coordinates;
+      if (!c) return 0;
+      let n = 0;
+      const walk = (x) => {
+        if (!Array.isArray(x)) return;
+        if (x.length === 2 && typeof x[0] === "number" && typeof x[1] === "number") {
+          n += 1;
+          return;
+        }
+        for (const item of x) walk(item);
+      };
+      walk(c);
+      return n;
+    } catch {
+      return 0;
+    }
+  }
+
+  function geometryLooksLikeLatLng(geom) {
+    try {
+      const c = geom?.coordinates;
+      if (!c) return false;
+
+      let checked = 0;
+      let ok = 0;
+
+      const walk = (x) => {
+        if (!Array.isArray(x) || checked >= 50) return;
+        if (x.length === 2 && typeof x[0] === "number" && typeof x[1] === "number") {
+          checked += 1;
+          const [lon, lat] = x;
+          if (lon >= -180 && lon <= 180 && lat >= -90 && lat <= 90) ok += 1;
+          return;
+        }
+        for (const item of x) walk(item);
+      };
+
+      walk(c);
+      return checked > 0 && (ok / checked) >= 0.9;
+    } catch {
+      return false;
+    }
+  }
+
+  // fix Python "and" to JS
+    const selectedFeatureCollection =
+    selectedParcel &&
+    selectedParcel.geometry &&
+    geometryLooksLikeLatLng(selectedParcel.geometry) &&
+    countCoords(selectedParcel.geometry) <= 4000
       ? {
           type: "FeatureCollection",
           features: [
-            {
-              type: "Feature",
-              properties: {},
-              geometry: selectedParcel.geometry,
-            },
+            { type: "Feature", properties: {}, geometry: selectedParcel.geometry },
           ],
         }
       : null;
 
+  // ✅ Critical: forward clicks from GeoJSON layers (Leaflet eats map clicks on vector layers)
+  const forwardClick = (e) => {
+    try {
+      const { lat, lng } = e.latlng;
+      onMapClick(lat, lng);
+    } catch (_e) {}
+  };
+
   return (
     <>
+      <MapAutoFit selectedParcel={selectedParcel} />
+
       <TileLayer
-        attribution='&copy; OpenStreetMap contributors'
+        attribution="&copy; OpenStreetMap contributors"
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
       />
 
-      {boundaries && <GeoJSON data={boundaries} style={boundaryStyle} />}
+      {boundaries && (
+        <GeoJSON data={boundaries} style={boundaryStyle} eventHandlers={{ click: forwardClick }} />
+      )}
 
-      {zoning && <GeoJSON data={zoning} style={zoningStyle} />}
+      {zoning && (
+        <GeoJSON data={zoning} style={zoningStyle} eventHandlers={{ click: forwardClick }} />
+      )}
 
-      {parcels && <GeoJSON data={parcels} style={parcelStyle} />}
+      {parcels && (
+        <GeoJSON data={parcels} style={parcelStyle} eventHandlers={{ click: forwardClick }} />
+      )}
 
       {selectedFeatureCollection && (
         <GeoJSON
           data={selectedFeatureCollection}
-          style={{
-            color: "#ef4444",
-            weight: 2,
-            fillOpacity: 0,
-          }}
+          style={{ color: "#ef4444", weight: 2, fillOpacity: 0 }}
+          eventHandlers={{ click: forwardClick }}
         />
       )}
 
@@ -171,7 +210,6 @@ function InteractiveMap({
     </>
   );
 }
-
 function MapWrapper(props) {
   return (
     <MapContainer
@@ -338,7 +376,7 @@ function LoginModal({ onClose, onLogin }) {
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        zIndex: 50,
+        zIndex: 9999,
       }}
     >
       <div
@@ -442,7 +480,7 @@ function SmartCodeModal({ onClose, context }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  // NEW: local profile (Royal Palm Beach RS, etc.)
+  // Local profile (Royal Palm Beach RS, etc.)
   const [profile, setProfile] = useState(null);
   const [profileLoading, setProfileLoading] = useState(false);
   const [profileError, setProfileError] = useState(null);
@@ -513,6 +551,14 @@ function SmartCodeModal({ onClose, context }) {
   const jurisdictionLabel =
     context?.parcel?.jurisdiction || context?.region || "Selected jurisdiction";
 
+  const parcel = context?.parcel || null;
+  const zoningLabel =
+    parcel?.zoning || parcel?.ZONING_DESC || parcel?.zoningDistrict || "—";
+  const fluLabel =
+    parcel?.flu || parcel?.fluCategory || parcel?.FLU || parcel?.FLU_DESC || "—";
+
+  if (!context) return null;
+
   return (
     <div
       style={{
@@ -520,294 +566,889 @@ function SmartCodeModal({ onClose, context }) {
         inset: 0,
         backgroundColor: "rgba(15,23,42,0.35)",
         display: "flex",
-        alignItems: "center",
         justifyContent: "center",
-        zIndex: 50,
+        alignItems: "center",
+        padding: 12,
+        zIndex: 9999,
       }}
     >
       <div
         style={{
           backgroundColor: "#ffffff",
           borderRadius: 18,
-          padding: "18px 18px 14px",
+          padding: "16px 16px 14px",
           width: "100%",
-          maxWidth: 520,
-          maxHeight: "80vh",
+          maxWidth: 900,
+          maxHeight: "90vh",
           display: "flex",
           flexDirection: "column",
           boxShadow: "0 24px 60px rgba(15,23,42,0.3)",
+          overflow: "hidden",
         }}
       >
+        {/* Header */}
         <div
           style={{
             display: "flex",
+            alignItems: "flex-start",
             justifyContent: "space-between",
-            alignItems: "center",
-            marginBottom: 8,
+            gap: 12,
+            borderBottom: "1px solid #e5e7eb",
+            paddingBottom: 8,
+            marginBottom: 10,
           }}
         >
           <div>
-            <div style={{ fontSize: 15, fontWeight: 600 }}>Smart code search</div>
-            <div style={{ fontSize: 11, color: "#6b7280", marginTop: 2 }}>
-              Context: {jurisdictionLabel}
+            <div
+              style={{
+                fontSize: 15,
+                fontWeight: 600,
+                color: "#111827",
+                letterSpacing: "-0.01em",
+              }}
+            >
+              Smart code search
             </div>
-          </div>
-          <button
-            onClick={onClose}
-            style={{
-              border: "none",
-              background: "transparent",
-              cursor: "pointer",
-              fontSize: 16,
-              lineHeight: 1,
-            }}
-          >
-            ×
-          </button>
-        </div>
-
-        <p style={{ fontSize: 12, color: "#6b7280", marginBottom: 10 }}>
-          Ask zoning, future land use, or entitlement questions. MyZ🌎NE will use the
-          selected parcel&apos;s zoning + FLU context, local profiles (where available),
-          plus general planning knowledge.
-        </p>
-
-        <textarea
-          placeholder="Example: What are the minimum lot size and setbacks for RS zoning in Royal Palm Beach, FL?"
-          value={question}
-          onChange={(e) => setQuestion(e.target.value)}
-          style={{
-            flexShrink: 0,
-            minHeight: 90,
-            maxHeight: 140,
-            resize: "vertical",
-            padding: "8px 10px",
-            borderRadius: 10,
-            border: "1px solid #d1d5db",
-            fontSize: 13,
-            fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
-            marginBottom: 8,
-          }}
-        />
-
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-            marginBottom: 10,
-            flexWrap: "wrap",
-          }}
-        >
-          <button
-            type="button"
-            onClick={handleAsk}
-            disabled={loading || !question.trim()}
-            style={{
-              alignSelf: "flex-start",
-              borderRadius: 999,
-              border: "none",
-              padding: "6px 12px",
-              fontSize: 12,
-              backgroundColor: BRAND_BLUE,
-              color: "#ffffff",
-              cursor: loading || !question.trim() ? "default" : "pointer",
-              opacity: loading || !question.trim() ? 0.7 : 1,
-            }}
-          >
-            {loading ? "Thinking…" : "Ask"}
-          </button>
-
-          <span
-            style={{
-              fontSize: 11,
-              color: "#6b7280",
-            }}
-          >
-            Local profile + live answers powered by OpenAI &amp; MyZ🌎NE.
-          </span>
-        </div>
-
-        <div
-          style={{
-            flex: 1,
-            borderRadius: 10,
-            border: "1px dashed #e5e7eb",
-            padding: "10px 10px",
-            fontSize: 12,
-            color: "#374151",
-            backgroundColor: "#f9fafb",
-            overflowY: "auto",
-          }}
-        >
-          {/* Local jurisdiction profile (Royal Palm Beach RS, etc.) */}
-          {profileLoading && (
-            <p
+            <div
               style={{
                 fontSize: 11,
                 color: "#6b7280",
-                marginBottom: 6,
+                marginTop: 2,
+                maxWidth: 480,
               }}
             >
-              Loading local zoning profile…
-            </p>
-          )}
-
-          {profileError && (
-            <div
-              style={{
-                color: "#b91c1c",
-                fontSize: 11,
-                marginBottom: 6,
-              }}
-            >
-              {profileError}
+              Ask zoning, future land use, or entitlement questions. MyZ🌎NE will use the
+              selected parcel&apos;s zoning + FLU context, local profiles (where available),
+              plus general planning knowledge.
             </div>
-          )}
+          </div>
 
-          {profile && !profileLoading && (
+          <button
+            onClick={onClose}
+            style={{
+              borderRadius: 999,
+              border: "1px solid #e5e7eb",
+              padding: "5px 10px",
+              fontSize: 11,
+              backgroundColor: "#ffffff",
+              cursor: "pointer",
+            }}
+          >
+            Close
+          </button>
+        </div>
+
+        {/* Parcel context strip */}
+        <div
+          style={{
+            display: "flex",
+            flexWrap: "wrap",
+            gap: 12,
+            fontSize: 11,
+            color: "#4b5563",
+            marginBottom: 10,
+          }}
+        >
+          <div>
+            <span style={{ textTransform: "uppercase", color: "#9ca3af" }}>
+              Parcel
+            </span>
+            <div style={{ fontSize: 12, color: "#111827" }}>
+              {parcel?.address || "—"}
+            </div>
+          </div>
+          <div>
+            <span style={{ textTransform: "uppercase", color: "#9ca3af" }}>
+              Parcel ID
+            </span>
+            <div style={{ fontSize: 12, color: "#111827" }}>
+              {parcel?.id || "—"}
+            </div>
+          </div>
+          <div>
+            <span style={{ textTransform: "uppercase", color: "#9ca3af" }}>
+              Jurisdiction
+            </span>
+            <div style={{ fontSize: 12, color: "#111827" }}>
+              {jurisdictionLabel}
+            </div>
+          </div>
+          <div>
+            <span style={{ textTransform: "uppercase", color: "#9ca3af" }}>
+              Zoning
+            </span>
+            <div style={{ fontSize: 12, color: "#111827" }}>{zoningLabel}</div>
+          </div>
+          <div>
+            <span style={{ textTransform: "uppercase", color: "#9ca3af" }}>
+              Future Land Use
+            </span>
+            <div style={{ fontSize: 12, color: "#111827" }}>{fluLabel}</div>
+          </div>
+        </div>
+
+        {/* Main layout: left = local profile, right = Q&A */}
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "minmax(0, 1.1fr) minmax(0, 1.7fr)",
+            gap: 12,
+            alignItems: "stretch",
+            flex: 1,
+            minHeight: 0,
+          }}
+        >
+          {/* LEFT: Local zoning profile */}
+          <div
+            style={{
+              borderRadius: 12,
+              border: "1px solid #e5e7eb",
+              backgroundColor: "#f9fafb",
+              padding: 10,
+              fontSize: 12,
+              display: "flex",
+              flexDirection: "column",
+              gap: 6,
+            }}
+          >
             <div
               style={{
-                marginBottom: 10,
-                padding: "8px 8px",
-                borderRadius: 8,
-                backgroundColor: "#eef2ff",
-                border: "1px solid #e0e7ff",
+                fontSize: 12,
+                fontWeight: 600,
+                color: "#111827",
+                marginBottom: 2,
               }}
             >
-              <div
+              Local zoning profile
+            </div>
+
+            {profileLoading && (
+              <p
                 style={{
                   fontSize: 11,
-                  fontWeight: 600,
-                  color: "#111827",
-                  textTransform: "uppercase",
+                  color: "#6b7280",
                   marginBottom: 4,
                 }}
               >
-                Local profile –{" "}
-                {profile.jurisdiction || "Jurisdiction"} ·{" "}
-                {profile.zoning || "Zoning"}
-              </div>
+                Loading local zoning profile…
+              </p>
+            )}
 
-              {profile.summary && (
-                <p
+            {profileError && (
+              <div
+                style={{
+                  color: "#b91c1c",
+                  fontSize: 11,
+                  marginBottom: 4,
+                  backgroundColor: "#fef2f2",
+                  borderRadius: 8,
+                  border: "1px solid #fecaca",
+                  padding: "6px 8px",
+                }}
+              >
+                {profileError}
+              </div>
+            )}
+
+            {profile && !profileLoading && (
+              <div
+                style={{
+                  borderRadius: 10,
+                  border: "1px solid #e5e7eb",
+                  backgroundColor: "#eff6ff",
+                  padding: "8px 9px",
+                  fontSize: 12,
+                }}
+              >
+                <div
                   style={{
-                    fontSize: 12,
-                    color: "#1f2937",
+                    fontSize: 11,
+                    fontWeight: 600,
+                    color: "#111827",
+                    textTransform: "uppercase",
                     marginBottom: 4,
                   }}
                 >
-                  {profile.summary}
-                </p>
-              )}
+                  {profile.jurisdiction || "Jurisdiction"} ·{" "}
+                  {profile.zoning || "Zoning district"}
+                </div>
 
-              {Array.isArray(profile.typicalUses) &&
-                profile.typicalUses.length > 0 && (
-                  <div style={{ marginBottom: 4 }}>
-                    <div
-                      style={{
-                        fontSize: 11,
-                        fontWeight: 500,
-                        color: "#374151",
-                        marginBottom: 2,
-                      }}
-                    >
-                      Typical uses
-                    </div>
-                    <ul
-                      style={{
-                        paddingLeft: 18,
-                        margin: 0,
-                        fontSize: 12,
-                        color: "#374151",
-                      }}
-                    >
-                      {profile.typicalUses.map((u, idx) => (
-                        <li key={idx} style={{ marginBottom: 2 }}>
-                          {u}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
+                {profile.summary && (
+                  <p
+                    style={{
+                      fontSize: 12,
+                      color: "#1f2937",
+                      marginBottom: 4,
+                    }}
+                  >
+                    {profile.summary}
+                  </p>
                 )}
 
-              {profile.dimensionalSummary && (
-                <p
+                {Array.isArray(profile.typicalUses) &&
+                  profile.typicalUses.length > 0 && (
+                    <div style={{ marginBottom: 4 }}>
+                      <div
+                        style={{
+                          fontSize: 11,
+                          fontWeight: 500,
+                          color: "#374151",
+                          marginBottom: 2,
+                        }}
+                      >
+                        Typical uses
+                      </div>
+                      <ul
+                        style={{
+                          margin: 0,
+                          paddingLeft: 18,
+                          fontSize: 12,
+                          color: "#374151",
+                          lineHeight: 1.5,
+                        }}
+                      >
+                        {profile.typicalUses.map((u, idx) => (
+                          <li key={idx}>{u}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                {profile.dimensionalSummary && (
+                  <p
+                    style={{
+                      fontSize: 11,
+                      color: "#4b5563",
+                      marginBottom: 4,
+                    }}
+                  >
+                    {profile.dimensionalSummary}
+                  </p>
+                )}
+
+                {profile.notes && (
+                  <p
+                    style={{
+                      fontSize: 11,
+                      color: "#4b5563",
+                      marginBottom: 4,
+                    }}
+                  >
+                    {profile.notes}
+                  </p>
+                )}
+
+                {profile.disclaimer && (
+                  <p
+                    style={{
+                      fontSize: 10,
+                      color: "#6b7280",
+                    }}
+                  >
+                    {profile.disclaimer}
+                  </p>
+                )}
+              </div>
+            )}
+
+            {!profile && !profileLoading && !profileError && (
+              <div
+                style={{
+                  fontSize: 11,
+                  color: "#6b7280",
+                  lineHeight: 1.4,
+                }}
+              >
+                Localized zoning profiles are being rolled out jurisdiction by
+                jurisdiction. For now, answers will rely on the parcel&apos;s zoning,
+                FLU, and general planning practice.
+              </div>
+            )}
+          </div>
+
+          {/* RIGHT: Ask Smart code */}
+          <div
+            style={{
+              borderRadius: 12,
+              border: "1px solid #e5e7eb",
+              backgroundColor: "#ffffff",
+              padding: 10,
+              fontSize: 12,
+              display: "flex",
+              flexDirection: "column",
+              minHeight: 0,
+            }}
+          >
+            <div
+              style={{
+                fontSize: 12,
+                fontWeight: 600,
+                color: "#111827",
+                marginBottom: 6,
+              }}
+            >
+              Ask Smart code
+            </div>
+
+            {/* Question box + button */}
+            <div
+              style={{
+                marginBottom: 8,
+              }}
+            >
+              <textarea
+                placeholder="Example: What are the minimum lot size and setbacks for RS zoning in this jurisdiction?"
+                value={question}
+                onChange={(e) => setQuestion(e.target.value)}
+                style={{
+                  width: "100%",
+                  minHeight: 80,
+                  maxHeight: 140,
+                  resize: "vertical",
+                  padding: "8px 10px",
+                  borderRadius: 10,
+                  border: "1px solid #d1d5db",
+                  fontSize: 13,
+                  fontFamily:
+                    "system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
+                  marginBottom: 6,
+                }}
+              />
+
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  flexWrap: "wrap",
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={handleAsk}
+                  disabled={loading || !question.trim()}
                   style={{
-                    fontSize: 11,
-                    color: "#4b5563",
-                    marginBottom: 4,
+                    borderRadius: 999,
+                    border: "none",
+                    padding: "6px 12px",
+                    fontSize: 12,
+                    backgroundColor: BRAND_BLUE,
+                    color: "#ffffff",
+                    cursor: loading || !question.trim() ? "default" : "pointer",
+                    opacity: loading || !question.trim() ? 0.7 : 1,
                   }}
                 >
-                  {profile.dimensionalSummary}
-                </p>
-              )}
+                  {loading ? "Thinking…" : "Ask"}
+                </button>
 
-              {profile.notes && (
-                <p
+                <span
                   style={{
                     fontSize: 11,
-                    color: "#4b5563",
-                    marginBottom: 4,
-                  }}
-                >
-                  {profile.notes}
-                </p>
-              )}
-
-              {profile.disclaimer && (
-                <p
-                  style={{
-                    fontSize: 10,
                     color: "#6b7280",
                   }}
                 >
-                  {profile.disclaimer}
-                </p>
-              )}
-            </div>
-          )}
-
-          {/* Existing Smart Code answer / helper text */}
-          {error && (
-            <div style={{ color: "#b91c1c", marginBottom: 6 }}>{error}</div>
-          )}
-
-          {!error && !answer && !loading && (
-            <>
-              <div style={{ marginBottom: 4, fontWeight: 500, fontSize: 12 }}>
-                How this works
+                  Local profile + live answers powered by OpenAI &amp; MyZ🌎NE.
+                </span>
               </div>
-              <p style={{ marginBottom: 6 }}>
-                Type a question about zoning, future land use, or development potential.
-                The assistant will ground its answer in the selected parcel&apos;s
-                context (jurisdiction, zoning code, FLU, and area), plus any available
-                local profile and general planning practice.
-              </p>
-              <p style={{ color: "#9ca3af" }}>
-                Always verify results against the adopted zoning code and contact the
-                local jurisdiction for an official determination.
-              </p>
-            </>
-          )}
+            </div>
 
-          {loading && !answer && (
-            <p style={{ color: "#6b7280" }}>
-              Generating a zoning summary and entitlement overview…
-            </p>
-          )}
-
-          {answer && !error && (
+            {/* Answer / helper area */}
             <div
               style={{
-                whiteSpace: "pre-wrap",
+                flex: 1,
+                borderRadius: 10,
+                border: "1px dashed #e5e7eb",
+                padding: "8px 9px",
                 fontSize: 12,
-                color: "#111827",
+                color: "#374151",
+                backgroundColor: "#f9fafb",
+                overflowY: "auto",
               }}
             >
-              {answer}
+              {error && (
+                <div
+                  style={{
+                    color: "#b91c1c",
+                    marginBottom: 6,
+                    fontSize: 11,
+                  }}
+                >
+                  {error}
+                </div>
+              )}
+
+              {!error && !answer && !loading && (
+                <>
+                  <div
+                    style={{
+                      marginBottom: 4,
+                      fontWeight: 500,
+                      fontSize: 12,
+                    }}
+                  >
+                    How this works
+                  </div>
+                  <p
+                    style={{
+                      marginBottom: 6,
+                      fontSize: 11,
+                      lineHeight: 1.5,
+                      textAlign: "justify",
+                    }}
+                  >
+                    Type a question about zoning, future land use, or development
+                    potential. The assistant will ground its answer in the selected
+                    parcel&apos;s context (jurisdiction, zoning code, FLU, and area),
+                    plus any available local profile and general planning practice.
+                  </p>
+                  <ul
+                    style={{
+                      margin: 0,
+                      paddingLeft: 18,
+                      fontSize: 11,
+                      color: "#6b7280",
+                      marginBottom: 6,
+                      lineHeight: 1.4,
+                    }}
+                  >
+                    <li>Use plain language or code citations.</li>
+                    <li>Ask about setbacks, lot size, density, or typical uses.</li>
+                    <li>Run multiple questions for the same parcel.</li>
+                  </ul>
+                  <p
+                    style={{
+                      color: "#9ca3af",
+                      fontSize: 10,
+                      textAlign: "justify",
+                    }}
+                  >
+                    Always verify results against the adopted zoning code and contact the
+                    local jurisdiction for an official determination. This is a planning
+                    support tool, not legal advice or a formal interpretation.
+                  </p>
+                </>
+              )}
+
+              {loading && !answer && (
+                <p
+                  style={{
+                    color: "#6b7280",
+                    fontSize: 11,
+                  }}
+                >
+                  Generating a zoning summary and entitlement overview…
+                </p>
+              )}
+
+              {answer && !error && (
+                <div
+                  style={{
+                    whiteSpace: "pre-wrap",
+                    fontSize: 12,
+                    color: "#111827",
+                    textAlign: "justify",
+                  }}
+                >
+                  {answer}
+                </div>
+              )}
             </div>
-          )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+function NoticeReportModal({ onClose, selectedParcel, bufferReport }) {
+  if (
+    !bufferReport ||
+    !Array.isArray(bufferReport.parcels) ||
+    bufferReport.parcels.length === 0
+  ) {
+    return null;
+  }
+
+  const subject = selectedParcel || {};
+  const neighbors = bufferReport.parcels;
+  const radiusFeet = bufferReport.radiusFeet;
+  const center = bufferReport.center;
+
+  function handlePrint() {
+    window.print();
+  }
+
+  const formatMailing = (p) => {
+    const owner =
+      p.owner || p.ownerName || p.OWNER || p.OWNER_NAME || "";
+    const mail1 =
+      p.mailAddress1 ||
+      p.mailingAddress1 ||
+      p.MAILADDR1 ||
+      p.MAILADD1 ||
+      "";
+    const mail2 =
+      p.mailAddress2 ||
+      p.mailingAddress2 ||
+      p.MAILADDR2 ||
+      p.MAILADD2 ||
+      "";
+    const mailCity =
+      p.mailCity || p.mailingCity || p.MAILCITY || "";
+    const mailState =
+      p.mailState || p.mailingState || p.MAILSTATE || "";
+    const mailZip =
+      p.mailZip || p.mailingZip || p.MAILZIP || p.ZIP || "";
+
+    const line1 = mail1 || mail2 ? [mail1, mail2].filter(Boolean).join(" ") : "";
+    const cityLine =
+      mailCity || mailState || mailZip
+        ? [mailCity, mailState, mailZip].filter(Boolean).join(", ")
+        : "";
+
+    return {
+      owner,
+      line1,
+      cityLine,
+    };
+  };
+
+  return (
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        backgroundColor: "rgba(15,23,42,0.35)",
+        display: "flex",
+        justifyContent: "center",
+        alignItems: "center",
+        padding: 12,
+        zIndex: 9999,
+      }}
+    >
+      <div
+        style={{
+          backgroundColor: "#ffffff",
+          borderRadius: 18,
+          padding: "16px 16px 14px",
+          width: "100%",
+          maxWidth: 900,
+          maxHeight: "90vh",
+          display: "flex",
+          flexDirection: "column",
+          boxShadow: "0 24px 60px rgba(15,23,42,0.3)",
+          overflow: "hidden",
+        }}
+      >
+        {/* Header */}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "flex-start",
+            justifyContent: "space-between",
+            gap: 12,
+            borderBottom: "1px solid #e5e7eb",
+            paddingBottom: 8,
+            marginBottom: 10,
+          }}
+        >
+          <div>
+            <div
+              style={{
+                fontSize: 15,
+                fontWeight: 600,
+                color: "#111827",
+                letterSpacing: "-0.01em",
+              }}
+            >
+              Notice report (beta)
+            </div>
+            <div
+              style={{
+                fontSize: 11,
+                color: "#6b7280",
+                marginTop: 2,
+                maxWidth: 480,
+              }}
+            >
+              Neighbor list generated from the selected radius around the subject parcel.
+              Use this as a starting point for public notice mailings; always verify with
+              your adopted notice requirements.
+            </div>
+          </div>
+
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+            }}
+          >
+            <button
+              type="button"
+              onClick={handlePrint}
+              style={{
+                borderRadius: 999,
+                border: "1px solid #e5e7eb",
+                padding: "5px 10px",
+                fontSize: 11,
+                backgroundColor: "#f9fafb",
+                cursor: "pointer",
+              }}
+            >
+              Print / Save as PDF
+            </button>
+            <button
+              onClick={onClose}
+              style={{
+                borderRadius: 999,
+                border: "1px solid #e5e7eb",
+                padding: "5px 10px",
+                fontSize: 11,
+                backgroundColor: "#ffffff",
+                cursor: "pointer",
+              }}
+            >
+              Close
+            </button>
+          </div>
+        </div>
+
+        {/* Subject parcel + buffer summary */}
+        <div
+          style={{
+            display: "flex",
+            flexWrap: "wrap",
+            gap: 12,
+            fontSize: 11,
+            color: "#4b5563",
+            marginBottom: 10,
+          }}
+        >
+          <div>
+            <span style={{ textTransform: "uppercase", color: "#9ca3af" }}>
+              Subject Parcel
+            </span>
+            <div style={{ fontSize: 12, color: "#111827" }}>
+              {subject.address || "—"}
+            </div>
+          </div>
+          <div>
+            <span style={{ textTransform: "uppercase", color: "#9ca3af" }}>
+              Subject PCN
+            </span>
+            <div style={{ fontSize: 12, color: "#111827" }}>
+              {subject.id || "—"}
+            </div>
+          </div>
+          <div>
+            <span style={{ textTransform: "uppercase", color: "#9ca3af" }}>
+              Jurisdiction
+            </span>
+            <div style={{ fontSize: 12, color: "#111827" }}>
+              {subject.jurisdiction || "—"}
+            </div>
+          </div>
+          <div>
+            <span style={{ textTransform: "uppercase", color: "#9ca3af" }}>
+              Radius
+            </span>
+            <div style={{ fontSize: 12, color: "#111827" }}>
+              {radiusFeet} ft
+            </div>
+          </div>
+          <div>
+            <span style={{ textTransform: "uppercase", color: "#9ca3af" }}>
+              Center
+            </span>
+            <div style={{ fontSize: 12, color: "#111827" }}>
+              {center
+                ? `${center.lat.toFixed(5)}, ${center.lng.toFixed(5)}`
+                : "—"}
+            </div>
+          </div>
+          <div>
+            <span style={{ textTransform: "uppercase", color: "#9ca3af" }}>
+              Parcels in buffer
+            </span>
+            <div style={{ fontSize: 12, color: "#111827" }}>
+              {neighbors.length}
+            </div>
+          </div>
+        </div>
+
+        {/* Neighbor list table */}
+        <div
+          style={{
+            flex: 1,
+            borderRadius: 12,
+            border: "1px solid #e5e7eb",
+            backgroundColor: "#ffffff",
+            padding: 10,
+            fontSize: 12,
+            overflowY: "auto",
+          }}
+        >
+          <div
+            style={{
+              fontSize: 12,
+              fontWeight: 600,
+              color: "#111827",
+              marginBottom: 6,
+            }}
+          >
+            Neighbor parcels
+          </div>
+
+          <table
+            style={{
+              width: "100%",
+              borderCollapse: "collapse",
+              fontSize: 11,
+            }}
+          >
+            <thead>
+              <tr>
+                <th
+                  style={{
+                    textAlign: "left",
+                    padding: "4px 4px",
+                    borderBottom: "1px solid #e5e7eb",
+                  }}
+                >
+                  Owner
+                </th>
+                <th
+                  style={{
+                    textAlign: "left",
+                    padding: "4px 4px",
+                    borderBottom: "1px solid #e5e7eb",
+                  }}
+                >
+                  Mailing address
+                </th>
+                <th
+                  style={{
+                    textAlign: "left",
+                    padding: "4px 4px",
+                    borderBottom: "1px solid #e5e7eb",
+                  }}
+                >
+                  Parcel ID
+                </th>
+                <th
+                  style={{
+                    textAlign: "left",
+                    padding: "4px 4px",
+                    borderBottom: "1px solid #e5e7eb",
+                  }}
+                >
+                  Site address
+                </th>
+                <th
+                  style={{
+                    textAlign: "left",
+                    padding: "4px 4px",
+                    borderBottom: "1px solid #e5e7eb",
+                  }}
+                >
+                  Jurisdiction
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {neighbors.map((p) => {
+                const mail = formatMailing(p);
+                return (
+                  <tr key={p.id || p.address}>
+                    <td
+                      style={{
+                        padding: "4px 4px",
+                        borderBottom: "1px solid #f3f4f6",
+                        verticalAlign: "top",
+                      }}
+                    >
+                      {mail.owner || "—"}
+                    </td>
+                    <td
+                      style={{
+                        padding: "4px 4px",
+                        borderBottom: "1px solid #f3f4f6",
+                        verticalAlign: "top",
+                      }}
+                    >
+                      <div>{mail.line1 || "—"}</div>
+                      {mail.cityLine && (
+                        <div
+                          style={{
+                            color: "#6b7280",
+                          }}
+                        >
+                          {mail.cityLine}
+                        </div>
+                      )}
+                    </td>
+                    <td
+                      style={{
+                        padding: "4px 4px",
+                        borderBottom: "1px solid #f3f4f6",
+                        verticalAlign: "top",
+                      }}
+                    >
+                      {p.id || "—"}
+                    </td>
+                    <td
+                      style={{
+                        padding: "4px 4px",
+                        borderBottom: "1px solid #f3f4f6",
+                        verticalAlign: "top",
+                      }}
+                    >
+                      {p.address || "—"}
+                    </td>
+                    <td
+                      style={{
+                        padding: "4px 4px",
+                        borderBottom: "1px solid #f3f4f6",
+                        verticalAlign: "top",
+                      }}
+                    >
+                      {p.jurisdiction || "—"}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+
+          <div
+            style={{
+              marginTop: 6,
+              paddingTop: 6,
+              borderTop: "1px dashed #e5e7eb",
+              fontSize: 9,
+              color: "#9ca3af",
+            }}
+          >
+            This list is generated for planning support and public notice preparation.
+            Always verify parcel ownership, mailing addresses, and noticing radius
+            requirements with the applicable jurisdiction before sending notices.
+          </div>
+        </div>
+
+        {/* Footer / watermark */}
+        <div
+          style={{
+            marginTop: 6,
+            paddingTop: 4,
+            borderTop: "1px solid #f3f4f6",
+            fontSize: 9,
+            color: "#9ca3af",
+            display: "flex",
+            justifyContent: "space-between",
+          }}
+        >
+          <span>MyZ🌎NE – Notice mailers support (beta).</span>
+          <span>© MyZone</span>
         </div>
       </div>
     </div>
@@ -830,7 +1471,7 @@ function JurisdictionModal({ selectedRegion, onSelect, onClose }) {
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        zIndex: 50,
+        zIndex: 9999,
       }}
     >
       <div
@@ -979,6 +1620,7 @@ export default function App() {
   const [showLogin, setShowLogin] = useState(false);
   const [showSmartCodeModal, setShowSmartCodeModal] = useState(false);
   const [showJurisdictionModal, setShowJurisdictionModal] = useState(false);
+  const [showNoticeReport, setShowNoticeReport] = useState(false);
   const [showFeasibilityModal, setShowFeasibilityModal] = useState(false);
 
   const [mapCenter, setMapCenter] = useState(DEFAULT_CENTER);
@@ -1110,6 +1752,112 @@ export default function App() {
       setBufferLoading(false);
     }
   };
+
+  const handleExportBufferCsv = () => {
+    if (
+      !bufferReport ||
+      !Array.isArray(bufferReport.parcels) ||
+      bufferReport.parcels.length === 0
+    ) {
+      return;
+    }
+
+    const rows = [];
+
+    // Header for subject parcel
+    rows.push([
+      "Subject Parcel ID",
+      "Subject Address",
+      "Radius (feet)",
+      "Center Lat",
+      "Center Lng",
+    ]);
+
+    rows.push([
+      selectedParcel?.id || "",
+      selectedParcel?.address || "",
+      bufferReport.radiusFeet ?? "",
+      bufferReport.center?.lat ?? "",
+      bufferReport.center?.lng ?? "",
+    ]);
+
+    rows.push([]);
+    rows.push([
+      "Neighbor Parcel ID",
+      "Neighbor Address",
+      "Owner",
+      "Mailing Address 1",
+      "Mailing Address 2",
+      "Mailing City",
+      "Mailing State",
+      "Mailing ZIP",
+      "Jurisdiction",
+    ]);
+
+    bufferReport.parcels.forEach((p) => {
+      const owner =
+        p.owner || p.ownerName || p.OWNER || p.OWNER_NAME || "";
+      const mail1 =
+        p.mailAddress1 ||
+        p.mailingAddress1 ||
+        p.MAILADDR1 ||
+        p.MAILADD1 ||
+        "";
+      const mail2 =
+        p.mailAddress2 ||
+        p.mailingAddress2 ||
+        p.MAILADDR2 ||
+        p.MAILADD2 ||
+        "";
+      const mailCity =
+        p.mailCity || p.mailingCity || p.MAILCITY || "";
+      const mailState =
+        p.mailState || p.mailingState || p.MAILSTATE || "";
+      const mailZip =
+        p.mailZip || p.mailingZip || p.MAILZIP || p.ZIP || "";
+
+      rows.push([
+        p.id || "",
+        p.address || "",
+        owner,
+        mail1,
+        mail2,
+        mailCity,
+        mailState,
+        mailZip,
+        p.jurisdiction || "",
+      ]);
+    });
+
+    const csvContent = rows
+      .map((row) =>
+        row
+          .map((value) => {
+            const v = value == null ? "" : String(value);
+            if (v.includes('"') || v.includes(",") || v.includes("\n")) {
+              return `"${v.replace(/"/g, '""')}"`;
+            }
+            return v;
+          })
+          .join(","),
+      )
+      .join("\n");
+
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    const pcnSafe = (selectedParcel?.id || "subject-parcel").replace(
+      /[^a-zA-Z0-9_-]/g,
+      "_",
+    );
+    link.download = `myzone_notice_recipients_${pcnSafe}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
 
   const bufferCount = useMemo(
     () =>
@@ -1887,24 +2635,25 @@ export default function App() {
                           gap: 8,
                         }}
                       >
-                        <InfoField label="Label" value={selectedParcel.address} />
-                        <InfoField label="Parcel ID" value={selectedParcel.id} />
-                        <InfoField label="Owner" value={selectedParcel.owner || "—"} />
+                        <InfoField label="Address" value={selectedParcel.address || "—"} />
+                        <InfoField label="Parcel ID" value={selectedParcel.id || selectedParcel.parcel_id || "—"} />
+                        <InfoField label="Owner" value={selectedParcel.owner || selectedParcel.ownerName || selectedParcel.OWNER || "—"} />
                         <InfoField
                           label="Jurisdiction"
-                          value={selectedParcel.jurisdiction}
+                          value={selectedParcel.jurisdiction || selectedParcel.JURISDICTION || "—"}
                         />
-                        <InfoField label="Zoning" value={selectedParcel.zoning} />
+                        <InfoField label="Zoning" value={selectedParcel.zoning || selectedParcel.ZONING_DESC || selectedParcel.ZONING || "—"} />
                         <InfoField
                           label="Future Land Use"
-                          value={selectedParcel.flu || "TBD"}
+                          value={selectedParcel.flu || selectedParcel.FLU_DESC || selectedParcel.FLU || "TBD"}
                         />
                         <InfoField
                           label="Area (acres)"
                           value={
-                            selectedParcel.areaAcres != null
-                              ? selectedParcel.areaAcres.toFixed(3)
-                              : "—"
+                            (() => {
+                              const n = Number(selectedParcel.areaAcres);
+                              return Number.isFinite(n) ? n.toFixed(3) : "—";
+                            })()
                           }
                         />
                       </div>
@@ -2052,6 +2801,74 @@ export default function App() {
                     >
                       {bufferLoading ? "Generating…" : "Generate"}
                     </button>
+                    <button
+                      type="button"
+                      onClick={handleExportBufferCsv}
+                      disabled={
+                        bufferLoading ||
+                        !bufferReport ||
+                        !Array.isArray(bufferReport.parcels) ||
+                        bufferReport.parcels.length === 0
+                      }
+                      style={{
+                        padding: "6px 12px",
+                        borderRadius: 999,
+                        border: "1px solid #d1d5db",
+                        fontSize: 12,
+                        backgroundColor: "#ffffff",
+                        color: "#374151",
+                        cursor:
+                          bufferLoading ||
+                          !bufferReport ||
+                          !Array.isArray(bufferReport.parcels) ||
+                          bufferReport.parcels.length === 0
+                            ? "default"
+                            : "pointer",
+                        opacity:
+                          bufferLoading ||
+                          !bufferReport ||
+                          !Array.isArray(bufferReport.parcels) ||
+                          bufferReport.parcels.length === 0
+                            ? 0.5
+                            : 1,
+                      }}
+                    >
+                      Export CSV (beta)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowNoticeReport(true)}
+                      disabled={
+                        bufferLoading ||
+                        !bufferReport ||
+                        !Array.isArray(bufferReport.parcels) ||
+                        bufferReport.parcels.length === 0
+                      }
+                      style={{
+                        padding: "6px 12px",
+                        borderRadius: 999,
+                        border: "1px solid #d1d5db",
+                        fontSize: 12,
+                        backgroundColor: "#ffffff",
+                        color: "#111827",
+                        cursor:
+                          bufferLoading ||
+                          !bufferReport ||
+                          !Array.isArray(bufferReport.parcels) ||
+                          bufferReport.parcels.length === 0
+                            ? "default"
+                            : "pointer",
+                        opacity:
+                          bufferLoading ||
+                          !bufferReport ||
+                          !Array.isArray(bufferReport.parcels) ||
+                          bufferReport.parcels.length === 0
+                            ? 0.5
+                            : 1,
+                      }}
+                    >
+                      Notice report (PDF)
+                    </button>
                   </div>
 
                   {bufferError && (
@@ -2132,9 +2949,11 @@ export default function App() {
     </div>
   );
 
+
   return (
     <>
       {viewMode === "home" ? renderHome() : renderMapView()}
+
       {showLogin && (
         <LoginModal
           onClose={() => setShowLogin(false)}
@@ -2144,6 +2963,7 @@ export default function App() {
           }}
         />
       )}
+
       {showSmartCodeModal && (
         <SmartCodeModal
           onClose={() => setShowSmartCodeModal(false)}
@@ -2153,6 +2973,7 @@ export default function App() {
           }}
         />
       )}
+
       {showJurisdictionModal && (
         <JurisdictionModal
           selectedRegion={selectedRegion}
@@ -2160,11 +2981,17 @@ export default function App() {
           onClose={() => setShowJurisdictionModal(false)}
         />
       )}
-      <FeasibilityModal
-        open={showFeasibilityModal}
-        onClose={() => setShowFeasibilityModal(false)}
-        parcel={selectedParcel}
-      />
+
+      {showNoticeReport &&
+        bufferReport &&
+        Array.isArray(bufferReport.parcels) &&
+        bufferReport.parcels.length > 0 && (
+          <NoticeReportModal
+            onClose={() => setShowNoticeReport(false)}
+            selectedParcel={selectedParcel}
+            bufferReport={bufferReport}
+          />
+        )}
     </>
   );
 }
