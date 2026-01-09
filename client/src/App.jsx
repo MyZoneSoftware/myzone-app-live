@@ -62,8 +62,10 @@ function InteractiveMap({
 }) {
   const map = useMapEvents({
     click: (e) => {
-      const { lat, lng } = e.latlng;
-      handleMapClickSelectLatLng(lat, lng, { setSelectedParcel, setSelectedGeometry });
+      if (typeof onMapClick === "function") {
+        const { lat, lng } = e.latlng;
+        onMapClick(lat, lng);
+      }
     },
   });
 
@@ -165,10 +167,10 @@ function InteractiveMap({
 
   // ✅ Critical: forward clicks from GeoJSON layers (Leaflet eats map clicks on vector layers)
   const forwardClick = (e) => {
-    try {
+    if (typeof onMapClick === "function") {
       const { lat, lng } = e.latlng;
-      handleMapClickSelectLatLng(lat, lng, { setSelectedParcel, setSelectedGeometry });
-    } catch (_e) {}
+      onMapClick(lat, lng);
+    }
   };
 
   return (
@@ -220,9 +222,18 @@ function MapWrapper(props) {
         height: "100%",
         minHeight: "calc(100vh - 140px)",
       }}
-      scrollWheelZoom={true}
+      scrollWheelZoom
     >
-      <InteractiveMap {...props} />
+      <InteractiveMap
+        center={props.center}
+        zoom={props.zoom}
+        boundaries={props.boundaries}
+        parcels={props.parcels}
+        zoning={props.zoning}
+        selectedParcel={props.selectedParcel}
+        bufferReport={props.bufferReport}
+        onMapClick={props.onMapClick}
+      />
     </MapContainer>
   );
 }
@@ -1633,6 +1644,83 @@ export default function App() {
   const [layersError, setLayersError] = useState(null);
 
   const [selectedParcel, setSelectedParcel] = useState(null);
+// 🔑 Canonical parcel selector (GeoJSON + ArcGIS → UI-safe shape)
+function selectParcel(input) {
+  if (!input) return;
+
+  // If backend returns { feature: { type:"Feature", properties:{...}, geometry:{...} } }
+  if (input.feature) input = input.feature;
+
+  // Case 1: GeoJSON Feature
+  if (input.type === "Feature") {
+    const props = input.properties || {};
+    const geom = input.geometry || null;
+
+    const parcel = {
+      ...props,
+      id: props.id || props.PCN || props.PARID || props.PARCEL_ID || props.PARCEL_NUMBER || null,
+      address: props.address || props.SITE_ADDR || props.SITE_ADDRESS || "",
+      owner: props.owner || props.OWNER || props.OWNER_NAME || "",
+      jurisdiction: props.jurisdiction || props.JURISDICTION || "",
+      zoning: props.zoning || props.ZONING || props.ZONING_DESC || "",
+      flu: props.flu || props.FLU || props.FLU_DESC || "",
+      areaAcres: props.areaAcres ?? props.AREA_ACRES ?? props.GIS_ACRES ?? null,
+      lat: typeof props.lat === "number" ? props.lat : null,
+      lng: typeof props.lng === "number" ? props.lng : null,
+      geometry: geom,
+      raw: input,
+    };
+
+    setSelectedParcel(parcel);
+
+    if (parcel.lat != null && parcel.lng != null) {
+      setMapCenter({ lat: parcel.lat, lng: parcel.lng });
+    }
+
+    setViewMode("map");
+    return;
+  }
+
+  // Case 2: already normalized parcel object
+  if (input.id) {
+    setSelectedParcel(input);
+    if (typeof input.lat === "number" && typeof input.lng === "number") {
+      setMapCenter({ lat: input.lat, lng: input.lng });
+    }
+    setViewMode("map");
+    return;
+  }
+
+  // Case 3: ArcGIS feature shape (attributes/geometry)
+  const attrs = input.attributes || {};
+  const geom = input.geometry || {};
+
+  const ring =
+    geom?.rings?.[0]?.[0] ||
+    geom?.coordinates?.[0]?.[0] ||
+    null;
+
+  const lat = ring ? ring[1] : null;
+  const lng = ring ? ring[0] : null;
+
+  const parcel = {
+    id: attrs.PARID || attrs.PARCEL_ID || attrs.PARCEL_NUMBER || attrs.id || null,
+    address: attrs.SITE_ADDR || attrs.ADDRESS || "",
+    owner: attrs.OWNER || attrs.OWNER_NAME || "",
+    jurisdiction: attrs.JURISDICTION || attrs.CTY || "",
+    zoning: attrs.ZONING || attrs.ZONING_DESC || "",
+    flu: attrs.FLU || attrs.FLU_DESC || "",
+    lat,
+    lng,
+    geometry: geom,
+    raw: input,
+  };
+
+  setSelectedParcel(parcel);
+  if (lat != null && lng != null) setMapCenter({ lat, lng });
+  setViewMode("map");
+}
+
   const [bufferReport, setBufferReport] = useState(null);
   const [bufferRadiusFeet, setBufferRadiusFeet] = useState(300);
   const [bufferLoading, setBufferLoading] = useState(false);
@@ -1648,29 +1736,37 @@ export default function App() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [selectedRegion, setSelectedRegion] = useState("Palm Beach County, FL");
 
-  useEffect(() => {
-    async function loadLayers() {
-      setLayersLoading(true);
+  /*
+useEffect(() => {
+  async function loadLayers() {
+    setLayersLoading(true);
+    setLayersError(null);
+    try {
+      const [b, p, z] = await Promise.all([
+        getMunicipalBoundaries(),
+        getParcelsGeoJSON(),
+        getZoningGeoJSON(),
+      ]);
+      setBoundaries(b);
+      setParcelsGeoJSON(p);
+      setZoningGeoJSON(z);
+    } catch (err) {
+      console.error("Error loading base layers:", err);
+      console.warn("Base layers failed to load — continuing without them.");
       setLayersError(null);
-      try {
-        const [b, p, z] = await Promise.all([
-          getMunicipalBoundaries(),
-          getParcelsGeoJSON(),
-          getZoningGeoJSON(),
-        ]);
-        setBoundaries(b);
-        setParcelsGeoJSON(p);
-        setZoningGeoJSON(z);
-      } catch (err) {
-        console.error("Error loading base layers:", err);
-        setLayersError("Unable to load map layers. Please try again later.");
-      } finally {
-        setLayersLoading(false);
-      }
+    } finally {
+      setLayersLoading(false);
     }
+  }
 
-    loadLayers();
-  }, []);
+  loadLayers();
+}, []);
+*/
+// ✅ Heavy auto-load disabled for stability
+useEffect(() => {
+  setLayersLoading(false);
+  setLayersError(null);
+}, []);
 
   const handleMapClick = async (lat, lng) => {
     setBanner(null);
@@ -1679,7 +1775,7 @@ export default function App() {
 
     try {
       const parcel = await getParcelByLatLng(lat, lng);
-      setSelectedParcel(parcel);
+      selectParcel(parcel);
       if (parcel && typeof parcel.lat === "number" && typeof parcel.lng === "number") {
         setMapCenter({ lat: parcel.lat, lng: parcel.lng });
       }
@@ -1692,6 +1788,7 @@ export default function App() {
 
   const performSearch = async () => {
     const trimmed = searchQuery.trim();
+const normalized = trimmed.replace(/[^0-9]/g, ""); // remove dashes/spaces
     if (!trimmed) return;
 
     setBanner(null);
@@ -1700,13 +1797,12 @@ export default function App() {
     setBufferError(null);
 
     try {
-      const parcel = await getParcelBySearch(trimmed, [mapCenter.lat, mapCenter.lng]);
+      const parcel = await getParcelBySearch(normalized, [mapCenter.lat, mapCenter.lng]);
 
       if (parcel && typeof parcel.lat === "number" && typeof parcel.lng === "number") {
         setMapCenter({ lat: parcel.lat, lng: parcel.lng });
       }
-      setSelectedParcel(parcel);
-      setViewMode("map");
+      selectParcel(parcel);
     } catch (err) {
       console.error("Search error:", err);
       setBanner(err.message || "Unable to find a parcel for that search.");
@@ -2563,7 +2659,7 @@ export default function App() {
             <MapWrapper
               center={mapCenter}
               zoom={zoom}
-              onMapClick={(e) => handleMapClickSelect(e, { setSelectedParcel, setSelectedGeometry })}
+              onMapClick={handleMapClick}
               boundaries={boundaries}
               parcels={parcelsGeoJSON}
               zoning={zoningGeoJSON}
@@ -2996,52 +3092,3 @@ export default function App() {
   );
 }
 
-/* =========================
-   RESTORE CANONICAL SELECTION
-========================= */
-function selectParcel(parcel, {
-  setSelectedParcel,
-  setSelectedGeometry,
-}) {
-  if (!parcel) return;
-
-  setSelectedParcel(parcel);
-
-  if (parcel.geometry) {
-    setSelectedGeometry(parcel.geometry);
-  }
-}
-
-/* =========================
-   SEARCH → SELECT PARCEL
-========================= */
-async function handleSearchSelect(query, ctx) {
-  const parcel = await getParcelBySearch(query);
-  selectParcel(parcel, ctx);
-}
-
-/* =========================
-   MAP CLICK → SELECT PARCEL
-========================= */
-async function handleMapClickSelect(e, ctx) {
-  try {
-    const { lat, lng } = e.latlng;
-    const parcel = await getParcelByLatLng(lat, lng);
-    selectParcel(parcel, ctx);
-  } catch (err) {
-    console.warn("Map click: no parcel found", err);
-  }
-}
-
-/* =========================
-   MAP CLICK → SELECT PARCEL (FIXED)
-   Map provides (lat, lng), NOT event
-========================= */
-async function handleMapClickSelectLatLng(lat, lng, ctx) {
-  try {
-    const parcel = await getParcelByLatLng(lat, lng);
-    selectParcel(parcel, ctx);
-  } catch (err) {
-    console.warn("Map click: no parcel found", err);
-  }
-}
